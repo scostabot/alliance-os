@@ -1,0 +1,47 @@
+Proposal:  x86 physical memory layout
+
+The x86 historically has the weirdest memory layout around.  First 640k of
+conventional memory, then a 'hole' until 1MB into which expansion cards
+and the BIOS map memory, and then contiguous memory upwards (BIOSes with
+OS/2 compatibility even have another memory hole between 15 and 16MB, but
+that can usually be turned off.)  Nowadays when most OSes working in
+protected mode, the weird construction in the first MB is rather a pain in
+the back.
+
+I suggest we reserve the first 640k of memory for 'special' use, for
+several reasons.  I propose the following physical memory layout:
+
+,----------------- 0k    This page contains several important data
+| First page             structures, such as the BIOS data and the
+|----------------- 4k    like.  Better not touch it.
+| ABL page tables        These page tables are a direct 1-to-1 mapping
+| and CK part of         of up to 164MB of physical memory and the top
+| page tables            20M of the address space (I/O-mapped devices.)
+|----------------- 192k  Some of this may be free.
+| DMA memory             This memory is reserved for DMA transfers, which
+| ...                    need to use conventional memory.  Up to seven
+|----------------- 640k  DMA transfers can take place simultaneously.
+| BIOS/expansion
+| card memory
+|----------------- 1M
+| ABL code/data
+| CK code/data
+| Rest of memory
+| ...
+V
+
+During boot the DMA memory can be used temporarily for the MP trampoline
+code or other pieces of code or data that need to be in conventional
+memory.
+
+Systems with less than 164M of main memory have a hole left in the
+conventional memory below address 192k.  This memory can be added to
+the CK's freelist and can be used for some of the CK's data structures.
+Of course, I have assumed that our target systems have 640k of
+conventional memory, which is not neccessarily the case (but this not
+being so is *very* rare.  Still, in an advanced version of the system we
+might want to take this into account, which can be done by moving down the
+DMA memory.)
+
+Comments ?
+Ramon

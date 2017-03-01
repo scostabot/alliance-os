@@ -1,0 +1,22 @@
+This is the simulation of the Alliance Cache Kernel's scheduler, used for
+research purposes.
+
+In order to recompile the scheduler you will need to install Limes
+(http://galeb.etf.bg.ac.yu/~dav0r/limes/).  Limes is used in order to make
+the scheduler simlation realistic for multiprocessor systems, as well as
+being a tool for simulating in general (it provides a clocking source, for
+instance.)  As installing Limes is not a trivial matter (you need to
+install a special version of GCC), I have also provided static binaries.
+
+The static binary is called `sim', and can be found in the binaries/
+directory.  In order to run the simulation, issue the following commands 
+at your prompt:
+
+# cd binaries
+# ./sim > out
+
+[press ctrl-c when you're tired of waiting.  the simulator runs forever]
+
+You can now inspect the contents of the out file.
+
+-- Ramon <vhandel@chem.vu.nl>

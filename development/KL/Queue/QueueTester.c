@@ -1,0 +1,115 @@
+/*
+ * Queue module tester
+ *
+ * This module check the proper implementation of Queues, and it's a
+ * practical example of how using queues.
+ *
+ * HISTORY
+ * Date     Author    Rev    Notes
+ * 06/12/98 scosta    1.0    First draft
+ * 02/02/00 scosta    1.1    KLtrace->KLprint unconditional print
+ * 12/12/00 scosta    1.2    Taken away unneeded trace level setting
+ * 24/11/02 scosta    1.3    Better self-test handling
+ * 
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation.
+ * This program is distributed but WITHOUT ANY WARRANTY; without even the
+ * implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+ * See the GNU General Public License for more details.
+ */
+
+#include <klibs.h>
+#include <testreport.h>
+#include <teststubs.h>
+
+STRING testPacket[32]= { 'A', ' ', 'v', 'a', 'l', 'i', 'd', ' ',
+                         'p', 'a', 'c', 'k', 'e', 't' };
+
+int main()
+
+{
+	BOOLEAN flag;
+	Qhandle qId;	
+	QueueState qState;
+	Packet packet;
+	UWORD32 testSummary=1;
+
+	ReportTitle("Queue test suite");
+
+	/* Init the stuff */
+
+	TestTitle("Initialization");
+	
+	TestInfo("Illegal init");
+	testSummary&=ReportResult(KLqueueInit(0), FALSE);
+	
+	TestInfo("Legal init");
+	testSummary&=ReportResult(KLqueueInit(2), TRUE);
+
+	TestTitle("Test bound conditions");
+
+	/* First create a "dummy" queue of length zero. Should be illegal */
+	
+	TestInfo("Illegal allocation (0-packet queue)");
+	qId=KLqueueAlloc(0, 0);
+	testSummary&=ReportResult(qId, QNO_PACKETS); 
+
+	/* Then create a 1-length queue, and check for overflow on second
+	 * packet sent.                                                   */
+
+	TestInfo("Alloc 1-packet queue");
+	qId=KLqueueAlloc(0, 1);
+	testSummary&=ReportResult((qId<QVALID_HANDLE), TRUE);
+
+	packet.data=testPacket;
+	packet.size=sizeof(testPacket);
+
+	TestInfo("Insert packet #1");
+	qState=KLqueueInsert(qId, &packet);
+	testSummary&=ReportResult(qState, Q_WRITEOK);
+	TestInfo("Insert packet #2, overflow");
+	qState=KLqueueInsert(qId, &packet); 
+	testSummary&=ReportResult(qState, Q_OVERFLOW);
+	
+	/* Test queue underflow condition */
+	
+	TestInfo("Remove packet #1");
+	qState=KLqueueRemove(qId, &packet);
+	testSummary&=ReportResult(qState, Q_READOK);
+	TestInfo("Remove packet #2");
+	qState=KLqueueRemove(qId, &packet);
+	testSummary&=ReportResult(qState, Q_UNDERFLOW);
+
+	/* Destroy the queue */
+	
+	TestInfo("Test queue deallocation");
+	flag=KLqueueFree(qId);
+	testSummary&=ReportResult(flag, TRUE);
+	
+	/* Try to destroy it a second time */
+	
+	TestInfo("Test a second queue deallocation");
+	flag=KLqueueFree(qId);
+	testSummary&=ReportResult(flag, FALSE);
+
+	/* Try to write to the no longer existant queue */
+	
+	TestInfo("Test write on a non-existant queue");
+	qState=KLqueueInsert(qId, &packet);
+	testSummary&=ReportResult(qState, Q_NOQUEUE);
+	
+	/* Try to read from a no longer existant queue */
+	
+	TestInfo("Test read from a non-existant queue");
+	qState=KLqueueRemove(qId, &packet);
+	testSummary&=ReportResult(qState, Q_NOQUEUE);
+
+	EndReport();	
+
+	if(testSummary)	{
+		exit(0);
+	} else {
+		exit(1);
+	}
+}

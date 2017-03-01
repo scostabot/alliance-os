@@ -1,0 +1,213 @@
+<!doctype html public "-//w3c//dtd html 4.0 transitional//en">
+<html>
+<head>
+   <meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1">
+   <meta name="GENERATOR" content="Mozilla/4.5 [en] (X11; I; Linux 2.0.36 i586) [Netscape]">
+</head>
+<body>
+
+<center>
+<h2>
+LM for IOSK specification rel 1.0</h2></center>
+
+<center>
+<h3>
+Stefano Costa &lt;<a href="mailto://stefanocosta@netscape.net">stefanocosta@netscape.net</a>></h3></center>
+
+<h3>
+Index</h3>
+
+<blockquote>1. <a href="#Abstract">Abstract</a>
+<br>2. <a href="#Intro">Introduction</a>
+<br>3. <a href="#LM Init">LM Init</a>
+<br>4. <a href="#LM Probing">LM Probing</a>
+<br>5. <a href="#Change state">What happens if an LM change state?</a>
+<br>6. <a href="#IOSK-LM">IOSK-LMs communication</a>
+<br>6.1. <a href="#LM Write int">LM write interface</a>
+<br>6.2. <a href="#Read interface">LM Read interface</a>
+<br>7. <a href="#LM implementors">LMs from the implementor point of view</a>
+<br>8. <a href="#History">History</a>
+<br><a href="#Appendix A">Appendix A: LM Probe syntax</a></blockquote>
+
+<h3>
+<a NAME="Abstract"></a>1. Abstract</h3>
+This document tries to specify in a detailed way the implementation of
+an IOSK Loadable Module.
+<h3>
+<a NAME="Intro"></a>2. Introduction</h3>
+Since this is the first effort in order to implement an LM, and LMs are
+inherently unspecified, or better dependant on the SK that use them, I
+expect that this document will be useful to other SKs as well, in particular
+NetSK that have very similar functional requirements. In any case, analizing
+a "real" implementation can give useful hints to other different SKs as
+well. This document add more data to existing LM specification document,
+and gives here only the new things. It is obvious that any LM must be compliant
+to LM specification document, and that an IOSK LM in particular must be
+compliant to this document as well.
+<h3>
+<a NAME="LM Init"></a>3. LM Init</h3>
+When LM code is loaded into memory, LMInit() function is called. Inside
+this function is done all one-time-in-the-life kind of stuff for LM. If
+it is a device LM, it is required that LMInit() does NOT access hardware.
+IOSK gives as parameter the address of a callback routine, that the LM
+may call if its internal state has changed and that change is important
+to IOSK behaviour (see the paragraph What happens if an LM change state?).
+The IOSK also gives the entry point of another function, the one that must
+be called if the LM has some data to be put on the preceding LM in the
+chain or IOSK itself (see IOSK read interface).
+<br>The prototype of the function is:
+<p>typedef struct {
+<br>&nbsp;&nbsp;&nbsp; STRING *(*LMProbe)(VOID);
+<br>&nbsp;&nbsp;&nbsp; BOOLEAN (*LMRead)(VOID *, UWORD32);
+<br>}LMinitData;
+<p>BOOLEAN LMinit(LMinitData *)
+<p>IOSK tell the loaded LM which is the callback to use when data is available
+to IOSK, and which function call when LM changes its internal cnfiguration
+(see <a href="#Read interface">LM Read interface </a>and <a href="#LM Probing">LM
+Probing</a>).
+<br>Note that on LM specification document, the LMDescrption structure
+has two fields, <b>canRead</b> and <b>canWrite</b>. These fields are still
+valid, but only as a default state, i.e., immediately after the LM is loaded.
+After the IOSK has interrogated LM on his actual capalities with LMProbe(),
+these fields must be ignored.
+<h3>
+<a NAME="LM Probing"></a>4. LM Probing</h3>
+Since IOSK LMs implements a wide range of different functions, ranging
+from caches ending to serial port drivers, a standard mechanism to identify
+what an LM can do is essential for IOSK (or any SK as well). In order to
+be generic enough to cover all possible situations, present and future,
+when IOSK want to know if a loaded LM can work and if so, what can do,
+IOSK interrogate the LM calling a probing function:
+<p>STRING * LMprobe(VOID)
+<p>The LM returns a string that contains the LM capabilities, using a specific
+syntax. Considering a practical example, let's see the serial port on a
+IBM PC. In a PC compatible up to four serial ports may be present. The
+registers to control them are contained in a location written by BIOS at
+0:0400h. In my system is 0000:0400 F8 03 F8 02 00 00 00 00 That is, two
+serial ports with regs at 0x3f8 (COM1:) and 0x2f8 (COM2:). When the IOSK
+wants to know which and how many different configuration the LM just loaded
+supports, calls the LMProbe function defined in LM code. The LMProbe function
+reads memory at 0x400 and returns a string to IOSK formatted this way:
+<p><tt>"LMSerial(0, 1200 | 2400 | 9600 | 19200=Speed)=RW\nLMSerial(1, 1200
+| 2400 | 9600 | 19200=Speed)=RW"</tt>
+<p>That reads, from left to right "LMSerial instance 0 defines a control
+function called Speed that accepts the strings 1200, 2400, 9600 or 19200
+as input, and on that instance supports I/O operations". Same for the second
+line for instance 1. The outermost equal sign identify the LM I/O function
+present. Some devices are read-only, like CDs, some are both readable and
+writable. This field tells which is which, and from this the IOSK can know
+if routines LMRead and LMWrite are present or not (see Read interface and
+Write interface paragraphs). This mini language defines roughly the equivalent
+of Unix ioctl(), with the advantage that we don't need to know in advance
+which functions can be called into the module, since the module itself
+tell us so.
+<br>Probing is also essential to support a user-friendly installation program,
+since we can configure on the fly an Alliance OS machine. In order to be
+really useful, the names of interface functions defined in this way must
+be standardized. Doing so, a program that transfers files over a serial/parallel
+port can work with all kind of ports without being modified, if the semantic
+of such names does not change from LM to LM. We can say that LMProbe defines
+the control interface of LM, i.e. defines a series of function entry points
+and relative allowable parameters.
+<br>It is important to note that the syntax defines only the relationship
+entry points-parameters, and does not define or enforce any semantical
+meaning to the data. The semantical level interpretation is left uniquely
+to IOSK, that convetionally will enforce a standard naming. For instance,
+all serial port interface must contain serial in the name given by LMProbe.
+The syntax allows definitions of ranges:
+<p><tt>"LMSound(0, 0-255=Volume, 0-255=Tone, 0-255=Balance)=RW"</tt>
+<p>for instance defines the string given out by LMProbe by the LM that
+supports a sound card. The LM supports three control functions, named Volume,
+Tone and Balance, that accepts a number from 0 to 255 inclusive. Ranges
+may applied to instances as well, but in this case the IOSK must check
+if the different instance definition wraps each other:
+<p><tt>"LMDSP(0-15, 0-1000#.1=SampleSpeed)=RW\nLMDSP(16-23, 0-1=SwitchState)=RO"</tt>
+<p>in this case IOSK ensures that the deltas given in the two instance
+groups (0-15 and 16-23) does not overlap. If they overlap, the LM is unloaded.
+The '#' symbol defines the step of the increment, so in this case you can
+set the speed of the DSP board instance 5 at 150.5, or set instance 1 at
+1000, or whatever. The complete definition of the LM probing grammar is
+defined in Appendix A.
+<h3>
+<a NAME="Change state"></a>5. What happens if an LM change state?</h3>
+Configurations can change over time during the lifetime of an LM, so a
+mechanism to notify changes to IOSK must be provided. IOSK defines a callback
+function that serves such requests incoming from a generic LM. Since it
+is IOSK at LM init time that gives the address of the callback function,
+it can be different for each loaded LM, if necessary. For instance, IOSK
+also support removable media like CD-ROMs, and you can insert anytime a
+CD into the drive.Only the device LMIDE can know this, so calls the callback
+function and gives as argument a string formatted with the same language
+as LMProbe(). Two cases are possible: the LM has already available all
+data related to its new internal configuration and gives all data to IOSK,
+or ask IOSK to probe for new hardware again. Considering the above example
+<p>LMProbe before disc insertion
+<br><tt>LMIDE(0, Open | Close | Lock=DriveDoor)=Inactive</tt>
+<p>String given to callback function after disc insertion
+<br><tt>LMIDE(0, Open | Close | Lock=DriveDoor)=RO</tt>
+<p>Before a disc is inserted in the CDROM, we can only open, close or lock
+the tray, but we cannot do any I/O (the Inactive string). After a disc
+is inserted, LMIDE notifies IOSK that can do reads, but not writes on the
+instance in addition to operation on DriveDoor.
+<h3>
+<a NAME="IOSK-LM"></a>6. IOSK-LMs communication</h3>
+IOSK and LMs communicates through a queue. This is needed due to the asynchronous
+nature of I/O operations, which performance falls in synchronous operations.
+LMs however simply defines entry points that accepts a pointer and a size
+field. It is IOSK that mantains the queues, LMs are totally unaware of
+the communication protocol used by IOSK to mantain the LM chain. In each
+packet sent over the queue must be present a field that identify to which
+instance the packet must be sent to, if and only if the LM has more than
+one instance. IOSK knows after LMProbe() if the given LM has one or more
+instance available, and if so prepend the instance id prior I/O real data.
+The LM itself of course knows this, and interpretes data accordingly.
+<h3>
+<a NAME="LM Write int"></a>6.1. LM write interface</h3>
+BOOLEAN LMwrite(VOID *Buffer, UWORD32 Size)
+<p>IOSK tells LM that some data must be processed. If and only if the target
+LM has more than one instance, the first sizeof(DATA) bits tells which
+instance must process given data.
+<h3>
+<a NAME="Read interface"></a>6.2. LM read interface</h3>
+BOOLEAN LMread(VOID *Buffer, UWORD32 Size)
+<p>The address of LMRead is given by IOSK to LM through LMInit(). The LM
+when has data available, call this function to pass data to uper element
+in the chain or IOSK. Notes on communication It is IOSK that defines the
+policy for message passing in the queue, that is, if message data is physically
+copied for each packet in another memory packet then given to LM, or if
+mantains only one buffer regardless of how many LMs in the chain will process
+the same packet.
+<h3>
+<a NAME="LM implementors"></a>7. LMs from the implementor point of view</h3>
+The LM model for IOSK is functional to cover in the most complete and efficient
+way the constantly changing environment in both HW peripherals and SW update.
+In order to maximize code reuse, flexibility in user configuration (new
+LMs may be dynamically added and remove if a special need is requested)
+LMs are required to be as functioanally as atomic as possible. It is both
+complex (even possible) to implement an LM that act as a serial port driver
+and SCSI controller, but totally useless, wasteful and inefficient. Do
+one thing, and do it good.
+<h3>
+<a NAME="History"></a>8. Document history</h3>
+Stefano Costa &lt;<a href="mailto://stefanocosta@netscape.net">stefanocosta@netscape.net</a>>&nbsp;&nbsp;&nbsp;
+First release of document
+<h3>
+<a NAME="Appendix A"></a>Appendix A: Syntax for LM probing</h3>
+This is the BNF diagram for the syntax of strings in LMProbe():
+<p>&lt;number>::= 0-MAXINSTANCE
+<br>&nbsp;&lt;instance number>::= &lt;number> ['-' &lt;number>]
+<br>&nbsp;&lt;LMName>'('&lt;instance number> ',' [&lt;Arg>]* ')'
+<p>&nbsp;&lt;String>::=[A...Z][a...z]*
+<br>&nbsp;&lt;LMName>::='LM'&lt;String>
+<p>&nbsp;&lt;BinOp>::='|'
+<br>&nbsp;&lt;Number>::=0-MAXINT
+<br>&nbsp;&lt;Step>::='#'&lt;Number>
+<br>&nbsp;&lt;Range>::=&lt;Number> ' -' &lt;Number> [&lt;Step>]
+<br>&nbsp;&lt;Arg>::=[&lt;String> | &lt;Multiple> | &lt;Range>] '=' &lt;String>
+[&lt;String>]
+<br>&nbsp;&lt;Multiple>::=&lt;String> &lt;BinOp> &lt;String>
+<br>&nbsp;
+<br>&nbsp;
+<br>&nbsp;
+</body>
+</html>

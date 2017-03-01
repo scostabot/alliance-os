@@ -1,0 +1,527 @@
+<HTML>
+<HEAD>
+   <META HTTP-EQUIV="Content-Type" CONTENT="text/html; charset=iso-8859-1">
+   <META NAME="Author" CONTENT="Kernel Team, wrote by Abel Mui±o (Luc)">
+   <META NAME="Classification" CONTENT="Drafts">
+   <META NAME="Description" CONTENT="Description of the Alliance Kernel System.">
+   <META NAME="KeyWords" CONTENT="Alliance KernelSpecs, Alliance Specs,AllianceKernel,  Kernel, Alliance, Specs, Draft">
+   <TITLE>Alliance General System Specification Release 1.7</TITLE>
+</HEAD>
+<BODY>
+<font COLOR="Black" SIZE="3" FACE="Arial, Helvetica">
+
+<CENTER>
+<H1>General System Specification Release 1.7</H1>
+
+<i>A whole bunch of people</i><BR>
+</CENTER>
+<H2>Index</H2>
+
+<OL>
+<LI>
+<FONT SIZE=+1><A HREF="#Abstract">Abstract</A></FONT></LI>
+
+<LI>
+<FONT SIZE=+1><A HREF="#Intro">Introduction</A></FONT></LI>
+
+<LI>
+<FONT SIZE=+1><A HREF="#CK Layer">The Cache Kernel Layer</A></FONT></LI>
+
+<LI>
+<FONT SIZE=+1><A HREF="#LMs">Loadable Modules [<I>LMs</I>]</A></FONT></LI>
+
+<LI>
+<FONT SIZE=+1><A HREF="#SK Layer">The System Kernel Layer</A></FONT></LI>
+
+<OL>
+<LI>
+<FONT SIZE=+1><A HREF="#SKs">System Kernels [<I>SKs</I>]</A></FONT></LI>
+
+<OL>
+<LI>
+<FONT SIZE=+1><A HREF="#IOSK">Input/Output Kernel [<I>IOSK</I>]</A></FONT></LI>
+
+<LI>
+<FONT SIZE=+1><A HREF="#FSSK">File System Kernel [<I>FSSK</I>]</A></FONT></LI>
+
+<LI>
+<FONT SIZE=+1><A HREF="#SecSK">Security Kernel [<I>SecSK</I>]</A></FONT></LI>
+
+<LI>
+<FONT SIZE=+1><A HREF="#NetSK">Networking Kernel [<I>NetSK</I>]</A></FONT></LI>
+
+<LI>
+<FONT SIZE=+1><A HREF="#GrSK">Graphics Kernel [<I>GrSK</I>]</A></FONT></LI>
+
+<LI>
+<FONT SIZE=+1><A HREF="#SndSK">Sound Kernel [<I>SndSK</I>]</A></FONT></LI>
+
+<LI>
+<FONT SIZE=+1><A HREF="#UISK">User Interface [<I>UISK</I>]</A></FONT></LI>
+
+<LI>
+<FONT SIZE=+1><A HREF="#UISK">Alliance Scripting Host [ASH]</A></FONT></LI>
+</OL>
+
+<LI>
+<FONT SIZE=+1><A HREF="#System ORB">System ORB</A></FONT></LI>
+</OL>
+
+<LI>
+<FONT SIZE=+1><A HREF="#AK Layer">The Application Kernel Layer</A></FONT></LI>
+
+<OL>
+<LI>
+<FONT SIZE=+1><A HREF="#AGUI">Alliance Graphical User Interface [<I>AGUI]</I></A></FONT></LI>
+
+<LI>
+<FONT SIZE=+1><A HREF="#ACLI">Alliance Command Line Interpreter [<I>ACLI]</I></A></FONT></LI>
+
+<LI>
+<FONT SIZE=+1><A HREF="#AEAKs">Alliance Emulation Application Kernels [<I>AEAKs]</I></A></FONT></LI>
+</OL>
+
+<LI>
+<FONT SIZE=+1><A HREF="#Evaluation">Evaluation</A></FONT></LI>
+
+<LI>
+<FONT SIZE=+1><A HREF="#Acknowledgements">Acknowledgements</A></FONT></LI>
+
+<LI>
+<FONT SIZE=+1><A HREF="#References">References</A></FONT></LI>
+
+<LI>
+<FONT SIZE=+1><A HREF="#History">Document History</A></FONT></LI>
+</OL>
+
+<div align=right><i><a href="#Top">[Top]</a></i></div>
+<HR WIDTH="70%">
+<H2>
+<A NAME="Abstract"></A>1. Abstract</H2>
+The Alliance Operating System Project, hereafter "Alliance" can provide
+Multiple operating system emulation, through the Cache Kernel <A HREF="#Ref1">[1]</A>
+or CK, and a set of higher level System Kernels or SKs, with their set of Loadable Modules (LMs) which will provide
+all necessary hardware calls to Application Level Kernels or AKs.
+<BR>
+<div align=right><i><a href="#Top">[Top]</a></i></div>
+<HR WIDTH="70%">
+<H2>
+<A NAME="Intro"></A>2. Introduction</H2>
+In this whitepaper, we will attempt to discuss the interaction between
+the different Kernels, and describe the base functionality which all levels
+of the Alliance project will be based.
+<BR>To help you to get an overview of what is stated here, we have included
+the diagram showed below, which shows the Alliance kernel organization.
+The most basic functions are provided by the leftmost kernels, and kernels
+in the same column perform similar tasks.
+<P>
+
+<CENTER><TABLE BORDER=0 CELLPADDING=2 WIDTH="100%" >
+<TR ALIGN=CENTER VALIGN=CENTER>
+<TD></TD>
+
+<TD COLSPAN="3" BGCOLOR="#FF9900"><B><FONT SIZE=+1>System Kernels</FONT></B></TD>
+
+<TD BGCOLOR="#CC66CC"><B><FONT SIZE=+1>Application Kernels</FONT></B></TD>
+
+<TD BGCOLOR="#66FFFF"><B><FONT SIZE=+1>Applications</FONT></B></TD>
+</TR>
+
+<TR ALIGN=CENTER VALIGN=CENTER>
+<TD ROWSPAN="16" BGCOLOR="#FFFFCC">Cache Kernel (CK)</TD>
+
+<TD ROWSPAN="2" BGCOLOR="#FFFF99">Input/Output (IOSK)</TD>
+
+<TD ROWSPAN="16" BGCOLOR="#FFCC00">LM</TD>
+
+<TD ROWSPAN="2" BGCOLOR="#FFCCFF">Linux AK</TD>
+<TD BGCOLOR="#CCFFFF">FTPServer</TD>
+</TR>
+
+<TR ALIGN=CENTER VALIGN=CENTER>
+
+<TD BGCOLOR="#CCFFFF">HTTPServer</TD>
+</TR>
+
+<TR ALIGN=CENTER VALIGN=CENTER>
+<TD ROWSPAN="2" BGCOLOR="#FFFF99">File System (FSSK)</TD>
+
+<TD ROWSPAN="2" BGCOLOR="#FFCCFF">AGUI</TD>
+
+<TD BGCOLOR="#CCFFFF">Alliance FileManager</TD>
+</TR>
+
+<TR ALIGN=CENTER VALIGN=CENTER>
+
+<TD BGCOLOR="#CCFFFF">Alliance Browser</TD>
+</TR>
+
+<TR ALIGN=CENTER VALIGN=CENTER>
+<TD ROWSPAN="2" BGCOLOR="#FFFF99">Security (SecSK)</TD>
+
+<TD ROWSPAN="2" BGCOLOR="#FFCCFF">Win 3.x AK</TD>
+
+<TD BGCOLOR="#CCFFFF">WinWord</TD>
+</TR>
+
+<TR ALIGN=CENTER VALIGN=CENTER>
+
+<TD BGCOLOR="#CCFFFF">NotePad</TD>
+</TR>
+
+<TR ALIGN=CENTER VALIGN=CENTER>
+<TD ROWSPAN="2" BGCOLOR="#FFFF99">Networking (NetSK)</TD>
+
+<TD ROWSPAN="2" BGCOLOR="#FFCCFF">Win NT AK</TD>
+
+<TD BGCOLOR="#CCFFFF">MS-Office Bar</TD>
+</TR>
+
+<TR ALIGN=CENTER VALIGN=CENTER>
+
+<TD BGCOLOR="#CCFFFF">...</TD>
+</TR>
+
+<TR ALIGN=CENTER VALIGN=CENTER>
+<TD ROWSPAN="2" BGCOLOR="#FFFF99">Graphic (GrSK)</TD>
+
+<TD ROWSPAN="2" BGCOLOR="#FFCCFF">Windows XP AK</TD>
+
+<TD BGCOLOR="#CCFFFF">xxgdb</TD>
+</TR>
+
+<TR ALIGN=CENTER VALIGN=CENTER>
+
+<TD BGCOLOR="#CCFFFF">xemacs</TD>
+</TR>
+
+<TR ALIGN=CENTER VALIGN=CENTER>
+<TD ROWSPAN="2" BGCOLOR="#FFFF99">Sound (SndSK)</TD>
+
+<TD ROWSPAN="2" BGCOLOR="#FFCCFF">DOS AK</TD>
+
+<TD BGCOLOR="#CCFFFF">type</TD>
+</TR>
+
+<TR ALIGN=CENTER VALIGN=CENTER>
+
+<TD BGCOLOR="#CCFFFF">...</TD>
+</TR>
+
+<TR ALIGN=CENTER VALIGN=CENTER>
+<TD ROWSPAN="2" BGCOLOR="#FFFF99">User Interface (UISK)</TD>
+
+<TD ROWSPAN="2" BGCOLOR="#FFCCFF">OS/2 AK</TD>
+
+<TD BGCOLOR="#CCFFFF">...</TD>
+</TR>
+
+<TR ALIGN=CENTER VALIGN=CENTER>
+
+<TD BGCOLOR="#CCFFFF">...</TD>
+</TR>
+</TABLE></CENTER>
+
+<HR WIDTH="70%">
+<H2>
+<A NAME="CK Layer"></A>3. The Cache Kernel Layer</H2>
+The Cache Kernel is the root of Alliance and it's based on the Stanford
+University Caching Model of Operating System Kernel Functionality <A HREF="#Ref 1">[1]</A>,
+but a custom Alliance CK design is on the way. All developers are encouraged
+to understand this document in full, as our Cache model is based fully
+on this design. Pay special attention to the section on the Cache Kernel
+Interface <A HREF="#Ref 2">[2]</A>.
+
+<P>
+<div align=right><i><a href="#Top">[Top]</a></i></div>
+<HR WIDTH="70%">
+<H2>
+<A NAME="LMs"></A>4. Loadable Modules [<I>LMs</I>]</H2>
+Loadable modules are an important part of the System Kernels, but they
+are discussed before them because the LM concept is a more global idea.
+The key idea behind LM concept is about implementing a common infrastructure
+logically common to all SKs, developing the micro kernel and modular 
+design even below SK level. So LMs implements the minimum common functionality 
+factor to all SKs, avoiding to add burden to the minimalist architecture of
+Alliance OS and simplyfing in the same time the driver developer. 
+
+<P> AKs can also use LMs to enhance their functionality (i.e. support for new
+hardware features in existing supported devices, smart peripheral handling...)
+thus, it is recommended that AK designers include them in their designs. 
+
+<P>Also note that LMs work as part of a kernel, and not as children of
+it or as peers of it. It is a owner-owned relationship.
+
+<P>Loadable modules or LMs will provide a reduction in size for our SKs.
+By loading only modules that are needed, as they are needed, we will be
+able to provide services to higher level AKs quickly, without a large memory
+footprint. Each of the SKs will have available to them a number of LMs,
+some of which can be loaded at boot time, others loaded on demand. The
+LMs loaded at boot can be a function of User level configuration, allowing
+the user to pick and choose services that will be made available more quickly,
+thus allowing the user to enhance performance for their specific application
+level.
+
+<P>The dynamic loading of LMs will be done by the SK which owns them as
+required by applications. This <B>does not</B> mean that applications have
+to explicitly ask the SK to load a LM. They just perform a system call
+which the appropriate SK will handle and map to one of its LMs. Then, if
+that LM is not in memory (it is determined by checking a SK internal table),
+it will load it and complete the system call. From that point, the LM will
+stay in memory until the user chooses to unload it, either explicitly or
+by setting a time-out for unused LMs. Also, a LM can be swapped out from
+memory by the system if needed.
+
+<P>LMs' uses will range from huge range of functions. All Device Drivers
+will be implemented as LMs. LMs can be designed to be "Plug'n'Play" if
+they are hardware related, either at Install time (similar to Windows 95's
+search for hardware), or boot time (User configurable). LMs will also provide
+extensible security functions (as different password encryption/storing
+schemes), different net protocols (TCP/IP for example), different filesystem
+support and so on. 
+
+<p>The spefications document that describes features common to all kind of LMs is contained in <a href="../LM/docs/LM-spec.html">Alliance Loadable Modules specification</a>. Features of LM that are specific to the owner SK are pointed by the relative SK specification document.
+
+<P>
+<div align=right><i><a href="#Top">[Top]</a></i></div>
+<HR WIDTH="70%">
+<H2>
+<A NAME="SK Layer"></A>5. The System Kernel Layer</H2>
+This is the last layer a program should need to be able to run under the
+Alliance native environment as it contains the implementation of every
+system call (but users will need some user interface to do it by themselves).
+As a consequence of this, AKs should not be more than translation boxes
+that map emulated calls to the Alliance native call.
+
+<P>In order to provide full operating system services to high level Kernels,
+and to applications, we will provide a set of System Kernels (SKs). These
+SKs will provide direct hardware access to applications, and to higher
+level Application Kernels. The SKs will be designed using loadable modules,
+as discussed before, and they can be added and removed from a Alliance
+system at any time. The SK interface provides no additional functionality
+to the SKs, but it is in charge of assuring that every AK call reaches
+the right SK. It does this by looking in a database of which SKs are available
+on the system, then loading the correct kernel if it is available but not
+already loaded, and finally passing on the call.
+
+<P>We will discuss Kernel levels in a parent child peer relationship. i.e.
+The Cache Kernel is the parent of all other processes, the System Kernels
+are child processes of the Cache Kernel and peers with each other, and
+the CK+SK Layers is parent of Application Kernels, which are peers with
+each other, and parents of applications, which are peers with each other.
+<H3>
+<A NAME="SKs"></A>5.1. System Kernels [<I>SKs</I>]</H3>
+They will support the functionality of Alliance not supported directly
+by the CK, to ensure the "translation box" concept of AKs. The reason of
+different SKs is to allow some of them not to be loaded (i.e. you do not
+need graphics support when using only a text interface), to be swapped
+out if needed, or to be unloaded if unused, making this way a more efficient
+use of system memory.
+<H4>
+<A NAME="IOSK"></A>5.1.1. Input/Output Kernel [<I>IOSK</I>]</H4>
+It is the SK in charge of controlling the input/output channels of the
+systems in a raw format, making no interpretation of the data. It breaks
+down the devices into two categories: char device (as keyboard, mouse or
+modem, for example) and block devices (for example, disks). To access the
+hardware devices properly, the IOSK will need a set of drivers, which are
+implemented as LMs and will be loaded when needed or at users choice. It
+will be primarily used by other SKs which need to access some devices to
+work (e.g. FSSK, UISK and NetSK). This is one of the SKs that are needed
+to be loaded on system start-up, and it will never be unloaded, as it is
+always necessary.
+
+<P>A more complete description of IOSK is contained in <a href="../IOSK/docs/IOSK-spec.html">IOSK specification document</a>.
+<H4>
+<A NAME="FSSK"></A>5.1.2. File System Kernel [<I>FSSK</I>]</H4>
+The File System Kernel will provide a Alliance Specific "True" file system,
+and will maintain maintain compatibility with other file system types by
+providing emulation of other file system calls. So in this respect, if
+we will provide a Windows 95 Emulation AK, then we will provide emulation
+of all system calls for Fat, VFat, and Fat32, Application Kernels that
+will emulate operating systems will be required to provide system calls
+to the File System Kernel API, exactly as the operating system which is
+being emulated, and the File System Kernel will provide translation to
+and from the Emulated file system. Each file system emulation will be provided
+as an LM, either dynamically loaded by Child AKs, or at boot time (user
+configurable). By providing the service at boot time, you remove load time
+from actual application level loading, at the cost of a higher memory footprint.
+This is the last required kernel to complete the start-up sequence of the
+system, as it will allow access to disk to find where the rest of kernels
+are.
+
+<H4><A NAME="SecSK"></A>5.1.3. Security Kernel [<I>SecSK</I>]</H4>
+This kernel will group security functions implemented in Alliance. This
+functions have to be discussed and detailed, because some of them will
+be implemented as a security library (i.e. file permissions or login/password
+check), while others will be implemented directly into the kernel (type
+rate checking, for example).
+<H4>
+<A NAME="NetSK"></A>5.1.4. Networking Kernel [<I>NetSK</I>]</H4>
+The Networking Kernel will provide protocol level services to all Application
+Kernels. The different protocols will be assigned as LMs, and loaded after
+initializing network hardware (what can be done either on startup, when
+needed or on user request). The IOSK will provide the access to the hardware
+needed for communication (Net Cards, Modems, ports...).. To provide an
+example of a peering relationship between SKs, we can provide the Example
+of a Network File System Driver. In order to properly implement NFS, we
+will have to provide an interaction level between the Input/Output Kernel,
+the Networking Kernel, and the File System Kernel, at least.
+<H4>
+<A NAME="GrSK"></A>5.1.5. Graphics Kernel [<I>GrSK</I>]</H4>
+This kernel will handle every access to the video memory, even on text
+or graphical modes. It will also provide functions to access special features
+on video cards (like the ability to draw rectangles, circles...) to improve
+their speed, but in no way it will be responsible of any graphical user
+interface but higher level AKs, such as the Alliance GUI AK will be required
+to perform their video writing functions via this Kernel Interface instead.
+
+<P>As this Kernel will need to provide similar functionality to DirectX,
+in that higher level applications have need to pull full screen, direct
+hardware access can be granted to an application upon request. LMs should
+be provided for all makes of video cards, and provide both soft and hard
+access to the video devices on demand.
+<H4>
+<A NAME="SndSK"></A>5.1.6. Sound Kernel [<I>SndSK</I>]</H4>
+Works like the Graphics Kernel, but accessing the different Sound Cards
+using its own Modules. This kernel will also provide sound mixing (playing
+more than a sound at a time), volume control, and so on.
+<H4>
+<A NAME="UISK"></A>5.1.7. User Interface Kernel [<I>UISK</I>]</H4>
+The UISK will provide the basic functions and non-visible components of
+a UI, like a clipboard, event queues (as keystrokes or mouse clicks) and
+the ability of launching apps from supported OSes.
+<H4>
+<A NAME="ASH"></A>5.1.8. Alliance Scripting Host [<I>ASH</I>]</H4>
+The ASH is designed to provide scripting facilities to apps of any supported
+OS (including, of course Alliance native applications). It also will manage
+the processing of initialization scripts (configuration files) of other
+kernels.
+<H3>
+<A NAME="System ORB"></A>System ORB</H3>
+This is the front-end of the Alliance system. Every AK will only "see"
+this part of the system.
+<BR>The System ORB will allow distributed computing on Alliance by using
+CORBA<A HREF="#Ref 5">[5]</A> to locate the SKs (so the AKs can access
+SKs installed in a remote machine). It will also allow to use any other
+object, like aplications or dynamic link libraries in a distributed way,
+conforming to the CORBA specification done by the Object Management Group.
+The using of CORBA allows for greater modularity (you only need a small
+subset of the system, the rest can be used via the network), and comforming
+to an standard allows Alliance to interoperate with other OSes and architectures
+with software comforming to the same standard.
+<BR>As part of its work, the System ORB will perform the initialization
+of the SKs the first time they are loaded in memory, and reload them if
+necessary.
+<BR>
+<HR WIDTH="70%">
+<H2>
+<A NAME="AK Layer"></A>6. The Application Kernel Layer</H2>
+Application Kernels will provide multiple, high level, user functions,
+and will in fact perform the largest chunk of User level services. These
+Kernels will provide full emulation of Commercial and Freeware Operating
+systems, As well as functional Server modules, and Scientific simulation
+modules.
+
+<P>Alliance Application Kernels are the core of what Alliance is.
+These Kernels will provide full functionality of other Operating Systems
+through the Alliance System. Each AEAK will be written in detail in a whitepaper.
+Primarily, the Emulation will simply provide a necessary framework for
+the applications of an operating system to function in our operating system
+by translating the emulated OS' system calls no Alliance native ones.
+<H3>
+<A NAME="AGUI"></A>6.1. Alliance Graphical User Interface [<I>AGUI</I>]</H3>
+Alliance Graphical User Interface will be the most commonly used AK, as
+it will provide a fully functional GUI that is fully customizable to the
+user's taste. This GUI will be capable of "autoloading" other AKs as needed
+to emulate Operating System functionality. In this respect, all applications
+loaded into the system will be "marked" in a database according to which
+AK is required to load the application. When the application is called
+by the user, the database will be checked for a
+<BR>dependent AK, the AK will be checked, loaded if necessary, and then
+the AGUI handle the calls to draw and handle Visual Objects (Windows, Buttons
+and so on...), making the desktop uniform (instead of having different
+windows depending on which AK draws them). If the application is a non-graphical
+environment one, a window will be created and the output of the app will
+be drawn there.
+
+<P>This Kernel will be optional, other AKs can be loaded as the primary
+GUI, such as Windows 95 explorer, if the user wanted a full screen Windows
+95 session, providing still full emulation services via the UISK. Multiple
+Full Screen OS sessions can be provided by providing Virtual consoles,
+similar to un*x's.
+<BR>
+<div align=right><i><a href="#Top">[Top]</a></i></div>
+<HR WIDTH="70%">
+<H2>
+<A NAME="Evaluation"></A>7. Evaluation</H2>
+Alliance must provide benchmark results, and we need to provide benchmarking
+utilities. We also need to discuss how we will evaluate the performance
+levels of Alliance.
+<BR>
+<div align=right><i><a href="#Top">[Top]</a></i></div>
+<HR WIDTH="70%">
+<H2>
+<A NAME="Acknowledgements"></A>8. Acknowledgements</H2>
+I would like to thank everyone for all of their hard work up to this point,
+specially to Daniel Arbuckle and Matej T. Kovac for their patience and
+continuity :-)
+<BR>
+<div align=right><i><a href="#Top">[Top]</a></i></div>
+<HR WIDTH="70%">
+<H2>
+<A NAME="References"></A>9. References</H2>
+<A NAME="Ref 1"></A>[1] <A HREF="http://www-dsg.stanford.edu/papers/cachekernel/main.html">http://www-dsg.stanford.edu/papers/cachekernel/main.html</A>
+<BR><A NAME="Ref 2"></A>[2] <A HREF="http://www-dsg.stanford.edu/papers/cachekernel/section3_3.html#SECTION0003000000000000000">http://www-dsg.stanford.edu/papers/cachekernel/section3_3.html#
+SECTION0003000000000000000</A>
+<BR><A NAME="Ref 3"></A>[3] <A HREF="ftp://ftp.internic.net/pub/rfc">ftp://ftp.internic.net/pub/rfc</A>
+<UL>RFC 1094 - NFS: Network File System Protocol Specification
+<BR>RFC 1057 - RPC: Remote Procedure Call Specification Version 2 [supersedes
+RFC 1050]
+<BR>RFC 1014 - XDR: External Data Representation Standard</UL>
+<A NAME="Ref 4"></A>[4] <A HREF="ftp://ftp.internic.net/pub/rfc">ftp://ftp.internic.net/pub/rfc</A>
+<UL>RFC 854 Telnet protocol specification
+<BR>RFC 855 Telnet options</UL>
+<A NAME="Ref 5"></A>[5] <A HREF="http://www.omg.com">http://www.omg.com</A>
+<BR>
+<div align=right><i><a href="#Top">[Top]</a></i></div>
+<HR WIDTH="70%">
+<H2>
+<A NAME="History"></A>10. Document History</H2>
+
+<TABLE CELLSPACING=3 WIDTH="100%" >
+<TR VALIGN=TOP>
+<TD><B>0.3</B></TD>
+
+<TD>Wrote by Lloyd, start point for the following work</TD>
+</TR>
+
+<TR VALIGN=TOP>
+<TD><B>0.4</B></TD>
+
+<TD>Rewritten from version 0.3 by Abel Mui&ntilde;o (<A HREF="mailto:luc@redestb.es">Luc@redestb.es</A>)&nbsp;
+<BR>March 5th, 1998&nbsp;
+<BR>Adds new SKs, and the SK interface. A table with the system structure
+is provided.&nbsp;</TD>
+</TR>
+
+<TR VALIGN=TOP>
+<TD><B>0.4.1</B></TD>
+
+<TD>Minor modifications from version 0.4 by Daniel Arbuckle (<A HREF="mailto:djarb@wvc-omak.ctc.edu">djarb@wvc-omak.ctc.edu</A>)&nbsp;
+<BR>March 6th, 1998&nbsp;
+<BR>Variable number of installed SKs is added, some spelling/grammar fixes.</TD>
+</TR>
+
+<TR VALIGN=TOP>
+<TD><B>0.4.2</B></TD>
+
+<TD>Minor modifications from version 0.4.1 by Abel Mui&ntilde;o (<A HREF="mailto:luc@redestb.es">Luc@redestb.es</A>)
+</TD>
+<TR VALIGN=TOP>
+<TD><B>1.7</B></TD>
+
+<TD>Taken away dead links, some layout changes in order to make docs look coherent, added links to SK/LM docs (<A HREF="mailto:stefanocosta@netscape.net">stefanocosta@netscape.net</A>)
+</TD>
+</TABLE>
+</BODY>
+</HTML>

@@ -1,0 +1,44 @@
+# Compile the Alliance Kernel Library Tester
+#
+# HISTORY
+# Date     Author    Rev    Notes
+# 06/12/98 scosta    1.0    First draft
+# 02/02/00 scosta    1.1    Taken away SKTRACE because now KLprint is used
+# 12/12/00 scosta    1.2    More dependancies
+
+CC=@CC@
+CPPFLAGS=@CPPFLAGS@
+CFLAGS=@CFLAGS@
+RM=@RM@
+COMMONDEP=@COMMONDEP@
+
+FLAGS= -o $@ -c
+PPFLAGS= -I ../../include -I include
+
+#  Part of LIBS will be set outside, so we guarantee omogeneous compile
+
+LIBS = -Lbinaries -L../Monitor/binaries -L../String/binaries \
+       -L../Memory/binaries -L../TestStubs/binaries \
+       -lqueue -lmonitor -lstring -lmemory -lteststubs
+OFLAGS= -o
+
+objects/%.o: %.c $(COMMONDEP) 
+	$(CC) $(CPPFLAGS) $(PPFLAGS) $(CFLAGS) $(FLAGS) $<
+
+SRCS= QueueTester.c
+
+OBJS= ./objects/QueueTester.o
+
+FINAL= ./binaries/TestQueue
+
+$(FINAL): $(OBJS) ./binaries/libqueue.a\
+          ../String/binaries/libstring.a ../Memory/binaries/libmemory.a\
+          ../Monitor/binaries/libmonitor.a
+	$(CC) $(OBJS) $(LIBS) $(OFLAGS) $@
+
+test:
+	$(FINAL)
+
+clean:
+	$(RM) $(OBJS) $(FINAL)
+

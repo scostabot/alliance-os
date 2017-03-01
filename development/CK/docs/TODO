@@ -1,0 +1,127 @@
+TODO:  A whoooooooooooooolllllllllllleee lot, I just use this as a
+scratchpad for those little things I'm afraid I'll forget
+Most of these are copied off the backs of envelopes and other useless
+things :)
+
+- Temporarily set IOPL to 3, should be allocated using resources
+- cacheThread does everything PL3, should be more flex of course
+- should make system call to make thread run on idle (imposs now)
+  ---> replace switchState() with setState()
+
+- thread TSS contains security hazard (ss0/esp0).  Copy to CK ?
+  ---> Change usage of TSS to our own structures, keep user part in
+       user space and kernel part in kernel space.
+       Use TSS structure for bitmap, but can use most of it for our own
+       purposes (anything but bitmap.)  Keep alignment.
+  ---> when an object is uncached and cached again, make sure that
+       CKpreProcessTaskState doesn't mess up things in the TSS like maths.
+       ... and I/O allocations ?
+  ---> Aligment of TSS can reduce the task switcher to updating only one
+       part of the address in gdt
+- Allow each thread to have a private IDT and GDT
+
+- Context switching: research *extensively* methods to bring down context
+  switch time on pentium.  L4 comes to mind immediately -- how can we
+  implement such a cts-system ?
+
+- Make a call to surrender quantum to a different thread.  For efficient RPC
+- Look at OpenBLT http://www.frotz.net/openblt
+
+- Implement safe fast physical memory allocation and checking
+
+- Mark a thread as killed, then kill it in the scheduler
+
+- Rethink CK resources - which type of object is which resource allocated
+  to ?
+
+- Do security checking on thread heap pointers
+- Security check all addresses for not-in-kernel location (important
+  with the NYI new segmentation scheme)
+
+- With signals, perhaps pass on previous thread state to sighandl
+
+- Check out PIC auto-EOI feature
+
+- Profile two SMP scheduler designs:  shared locked heap and multiple
+  heaps;  measure average scheduler overhead and load balancing
+  Do simulation-based study on scalability
+- Add scheduler load calculation
+- Introduce priorities in RT threads based on defer
+- Add realtime signals
+- Put limits to variabls - quantum, for instance.
+- Have fudge vary with load for real microsecond-resolution timing
+- Allow threads to be woken up on the short term without having to wait
+  all the way (ie, set flag if signal may switch RT thread over to TS)
+- Add CK call to get current realtime (in a quantum)
+- Make realtime in *microseconds* in stead of microticks
+
+- Rethink signaling: global signals should probably directly return to app
+  as well... recheck signals every quantum / on block thread
+- Perhaps we should add more signaling possibilities -- i.e., different
+  handler per thread and different handler per signal
+
+- Add priority choice to CK physical memory allocation, non-cached memory
+  would be low priority.
+- Make sure TLB is flushed correctly or pages are invalidated (invlpg 
+  on 486+) where neccessary
+
+- Try to make *all* (or at least most) of the CK completely reentrant
+
+- This is not important now, but I am tempted to allocate a page for the
+  GDT and put the Alliance stuff completely at the end, so that all the
+  usual entries are free for the use of emulation kernels
+
+::::::::::::::: Go through the alliance-ck and alliance-kernel archives
+::::::::::::::: and check what I've forgotten :)
+
+-------------------------------------------
+
+Brainstorm about:
+- Persistance
+- Reboot kernel without the rest
+- Compression in ABL
+
+Research:
+- AK-controlled RT behavior (researching fluke system)
+- VCODE in multiplexing, and the like (research vcode)
+- More virtualisation (researching fluke system)
+- dynlinker
+
+---------------------------------------
+
+----> And, of course, grep the whole tree for TODO and do it :)
+
+------------------------------------------------------------------------
+
+- Interesting idea for persistance:  use 'avail' part of page mapping to mark
+  page needs to be cached in persistant store
+  Persistance needs to be researched.  The OS I'll be researching it in is 
+  EROS http://www.cis.upenn.edu:80/~eros/
+  Also see http://www.physics.swin.oz.au:70/info/freeDB/FreeDB.16.html
+  -- use object writeback to solve descriptor problem ?  or signal...
+
+------------------------------------------------------------------------
+
+[From SIGOPS]
+
+How to do dependancies:
+
+Here is an easy way to do dependancies automatically. 
+
+stick this somewhere in your Makefile: 
+
+depend: .depend
+
+.depend: $(SRCS)
+        $(CC) -E $(CFLAGS) -M *.c *.cc> .depend
+
+and at the very end put: 
+
+#
+# include a dependency file if one exists
+#
+ifeq (.depend,$(wildcard .depend))
+include .depend
+endif
+
+now a 'make depend' will calculate dependancies. 

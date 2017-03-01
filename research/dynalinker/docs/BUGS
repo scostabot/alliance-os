@@ -1,0 +1,8 @@
+Known bugs:
+
+ - Not all ELF vagaries are supported: shared libraries (*.so) are not
+   linkable.
+ - The shell does not allow you errors in typing, since I haven't found
+   the way to configure properly terminal driver to handle backspace key
+   (UNIX is very baroque for this)
+

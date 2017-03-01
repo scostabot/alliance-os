@@ -1,0 +1,286 @@
+\documentclass[]{article}
+\parindent 0.0cm
+\parskip 0.2cm
+\textwidth 6.2in
+\textheight 8.1in
+\oddsidemargin 0pt
+\evensidemargin \oddsidemargin
+\marginparwidth 0.5in
+
+\begin{document}
+
+\begin{center}
+\LARGE \bf
+Communication Buffer Management in the Alliance Cache Kernel Environment
+\normalsize
+\end{center}
+
+{ \it 
+{\bf Abstract: } This document describes the implementation of
+communication in the Alliance CK environment, and details the buffer
+management component thereof as implemented in the Kernel Libraries. }
+
+
+Ramon van Handel {\tt <vhandel@chem.vu.nl>},\\
+April 16, 1999\\
+Revised May 8, 1999
+
+\section{Introduction}
+The supervisor component of the Alliance Core System is the Alliance Cache
+Kernel. The CK provides a very minimal amount of services, all of which
+are low-level:  scheduling, physical memory allocation, mapping of virtual
+memory, and signaling.  All other services are performed at the level of
+external kernels, including virtual memory management and communication.
+
+Unlike other microkernel-like systems, the CK does not provide message
+passing primitives.  In stead, the CK allows for shared physical memory as
+the sole means of communication between address spaces with different
+owning external kernels in the core system.  At a higher level, the core
+system provides external kernels with a fast CORBA Object Request Broker
+which is optimised for local communications.
+
+Shared memory, though, is not directly suitable for usage in a system
+based around message-passing abstractions, such as CORBA.  It allows two
+threads in different address spaces pass information to each other without
+kernel intervention, but the format of this information is left undefined
+by the CK. In order to facilitate passing messages over the shared memory
+interface, the core system provides a message buffer management layer as
+part of its kernel libraries.  The usage of this layer is detailed in the
+rest of this document.
+
+\section{Basics of the Message Buffering Layer}
+The principle (and the implementation, as well) of the buffering layer is
+very simple. The buffering layer is built on top of the memory allocation
+library provided by the kernel libraries (free list allocation.) The free
+list is kept {\it inside\/} the shared memory area, and is protected by a
+shared mutex. The shared memory area is represented by the following
+structure:
+
+\begin{verbatim}
+#define SIGCHANNEL 0x4143686e
+typedef struct {
+    UDATA signature;
+    DESCRIPTOR shmem;
+    DATA attached;
+    Mutex bufMutex;
+    KLfreeListDescriptor bufFree;
+    UBYTE data[0];
+} *MsgChannel;
+\end{verbatim}
+
+{\tt UDATA signature }is used for validity checking. {\tt DESCRIPTOR shmem
+}is the descriptor of the shared memory object.  It is used by the
+buffering layer to communicate with the CK. {\tt DATA attached} are the
+amount of threads that are attached to the channel. {\tt Mutex bufMutex
+}is the mutex that protects the freelist from being corrupted. {\tt
+bufFree }is the freelist, as used by the freelist allocation library. The
+part of the area that is free for messages starts at {\tt data}.
+
+Initially, all of the shared memory area but the header (that is, from
+data to the end of the initially allocated page) is freed in the message
+channel's freelist.  Once the connection is set up with (an) other
+thread(s), each thread can allocate a message buffer inside the message
+channel. A message buffer looks like this:
+
+\begin{verbatim}
+#define SIGBUFFER  0x41427566
+typedef struct {
+    UDATA signature;
+    UADDR size;
+    UBYTE data[0];
+} *MsgBuf;
+\end{verbatim}
+
+{\tt UDATA signature }is used for validity checking.  {\tt UADDR size }is
+the size of the message buffer. The message contents are from {\tt data
+}to {\tt (data+size)}.  If the message channel isn't big enough, the
+allocation function will attempt to grow the associated shared memory area
+until there's enough room for the allocated buffer.  Message areas can be
+freed again when they're not being used anymore.
+
+Typically, there will be two message buffers in use by a pair of
+synchronously communicating applications, one for each direction, but this
+is completely in control of the applications in question.  Certainly with
+asynchronous communication many more buffers could be in use. Whether
+allocated buffers are reused or not is also up to the applications - it
+depends entirely on the communication protocol used by the applications.
+
+Aside from buffer allocation functions, the message buffer layer also
+provides functions to signal applications when a message has been written
+to a buffer synchronously (blocking for reply) or asynchronously.
+
+\section{The Message Buffering Layer API}
+
+\subsection{Initialisation}
+
+\subsubsection{Initialising the Message Buffering library}
+
+XXX --- TODO
+
+\subsubsection{Opening a new Message Channel}
+
+In order to open a new message channel, the message buffering library
+provides the function:
+
+{\parindent0.6cm\tt MsgChannel KLopenMsgChannel(UADDR inisize);}
+
+This function registers a new shared memory area with the CK with the
+initial size of one page if {\tt inisize} is 0 or of {\tt inisize}
+bytes round up to page boundary, and sets up the message channel data
+structure inside it.  It also frees up the rest of the shared memory area
+for buffer allocation.
+
+\subsubsection{Closing a Message Channel}
+
+If you are the owner\footnote{The owner of a shared memory area or
+message channel is the thread that created it.} of a message channel you
+can close the channel by using the function
+
+{\parindent0.6cm\tt VOID KLcloseMsgChannel(MsgChannel chan);}
+
+where {\tt chan} is the message channel to close.  This will free up the
+physical memory used by the channel and it will also notify all connected
+threads that the connection was terminated.
+
+\subsection{Connecting and Disconnecting}
+
+\subsubsection{Connecting to a thread}
+
+Before you can communicate with a thread, you will need to `connect' an
+open message channel to it.  This is done using the function
+
+{\parindent0.6cm\tt BOOLEAN KLmsgConnect(MsgChannel chan, DESCRIPTOR thread);}
+
+where {\tt chan} is the channel to connect to and {\tt thread} is the
+thread you want to communicate with.  The {\tt KLmsgConnect()} function
+will block until the thread has been connected (return value = {\tt TRUE})
+or the connection has been rejected (return value = {\tt FALSE}).
+
+When a thread issues the connect request, the thread it wants to connect
+to is signalled by the CK (invite signal).  If the thread wants to accept
+the connection, it calls
+
+{\parindent0.6cm\tt MsgChannel KLmsgAccept(DESCRIPTOR shmem);}
+
+{\tt shmem} is the descriptor of the shared memory area, which the thread
+gets as the signal parameter.  This will sucessfully set up the connection
+and return the location of the message channel in the (accepting) thread's
+address space.  In order to let the inviting thread know that it
+connected, it increases the {\tt attached} variable in the channel
+structure and sends an asynchronous message to the inviting thread which
+contains the address of the whole channel (in stead of a message buffer
+allocated inside the channel.)  The inviting thread will recognise the
+channel signature, note that the attached threads count has increased, and
+thus know that the thread has attached.
+
+If, on the other hand, the thread wishes to reject the connection, it
+calls:
+
+{\parindent0.6cm\tt VOID KLmsgReject(DESCRIPTOR shmem);}
+
+{\sl [XXX --- think of a good reject protocol; a rejecting thread doesn't
+have the channel address.  Also, without connecting it cannot signal to
+the inviting thread.  This needs thought.]}
+
+If a thread tries to connect to a ``misbehaving'' thread, which doesn't
+issue a {\tt KLmsgReject()} call or an {\tt KLmsgAccept()} call, the
+thread will hang.  In order to avoid this the thread can also use the
+function
+
+{\parindent0.6cm\tt BOOLEAN KLmsgConnectTimeout(MsgChannel chan, DESCRIPTOR thread, TIME timeout);}
+
+which is basically the same as {\tt KLmsgConnect()}, except for the fact
+that this function will also return {\tt FALSE} if a time {\tt timeout}
+has passed without a connection having been established or rejected.
+
+\subsubsection{Disconnecting from a message channel}
+
+At any time, a connected thread can disconnect itself from a message
+channel using the call
+
+{\parindent0.6cm\tt VOID KLmsgDisconnect(MsgChannel chan);}
+
+In order to let the other connected threads know that it has disconnected,
+it first decreases the attached threads count in the channel structure and
+then sends an asynchronous message to the channel which contains the
+address of the whole channel, like when attaching.  On recognising the
+channel signature and the decreased attached count, the still connected
+threads will know that a thread has disconnected.  After this, the thread
+tells the CK to detach it from the shared memory area.
+
+If the owner of a channel tries to disconnect from the channel, it is
+equivalent to closing the channel. One thread cannot kick another
+connected thread off a channel, except if the whole channel is closed by
+the owner.
+
+\subsection{Buffer Allocation}
+
+In order to allocate a message buffer in a message channel, the following
+call is provided:
+
+{\parindent0.6cm\tt MsgBuf KLallocMsgBuf(MsgChannel chan, UADDR size);}
+
+where {\tt chan} is the channel to allocate the buffer in and {\tt size}
+is the size of the requested message buffer.  If the requested size
+exceeds the amount of free memory in the message channel,
+{\tt KLallocMsgBuf()} will attempt to grow the message channel.  If it
+doesn't succeed, it returns {\tt NIL}.
+
+In order to free an allocated message buffer, call
+
+{\parindent0.6cm\tt BOOLEAN KLfreeMsgBuf(MsgChannel chan, MsgBuf buffer);}
+
+This will not attempt to shrink the shared memory area if there's an
+unused physical page - call the garbage collecting function for that.
+
+{\tt KLfreeMsgBuf()} should return {\tt TRUE}.  If it doesn't, this means
+that the message buffer was somehow corrupted.  Should this function
+return {\tt FALSE}, it is wise to immediately close the message channel
+lest there be more memory corruption somewhere.
+
+\subsection{Signalling functions}
+
+Once a message has been written to an allocated message buffer, it is
+possible to signal the thread connected to the message channel that the
+message has been written. {\it This is not strictly neccessary;\/} the
+threads might have a different way of notification, such as polling, some
+external event, or a timeout.  Unlike the rest of the messaging procedure
+signalling requires a trap to the kernel, so it is possible to skip this
+step if the situation provides for a way that consumes less time.
+
+The message buffering library provides three signalling calls:
+
+{\parindent0.6cm\tt VOID KLmsgSendSync(MsgChannel chan, MsgBuf buffer);
+
+\parskip0.04cm BOOLEAN KLmsgSendSyncTimeout(MsgChannel chan, MsgBuf buffer, TIME timeout);
+
+VOID KLmsgSendAsync(MsgChannel chan, MsgBuf buffer);}
+
+The first two functions are synchronous calls:  they block the thread
+until a reply has been received from the message channel that was
+signalled.  In the case of {\tt KLmsgSendSyncTimeout()} the communication 
+might also time out after the specified amount of time, in which case the
+function returns {\tt FALSE}.  The asynchronous call returns directly and
+does not block, thus providing for asynchronous communication (the thread
+will receive a signal when the reply has arrived.)
+
+\subsection{Garbage collection}
+
+XXX --- TODO
+
+\section{Evaluation}
+
+The Message Bufferring layer has not yet been evaluated.
+
+\section{Conclusion}
+
+The Message Buffering library, which is part of the Alliance Kernel
+Libraries, provides a buffering layer in order to ease the use of
+message-oriented protocols, such as those used in the System ORB, on top
+of shared memory, which is the sole means of communications within the
+Alliance Cache Kernel environment.  It is my hope that its use will
+simplify the design and implementation of system components that require
+these services.
+
+\end{document}
+

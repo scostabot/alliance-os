@@ -1,0 +1,21 @@
+This stuff was written as a functional test, and is *not* written for
+performance in first place. Optimizations will be done in a next release.
+
+In order to link & run IOSK LMs, we need that the currently Linux-based
+primitives on I/O routines are defined as linkable symbols inside the
+shell binary. In other words, the shell will export the pointers to
+key I/O routines that use the standard libc functions while under
+the Alliance-standard naming. In this way, a very handy testbed for
+IOSK driver will be in place, allowing early customized code for Alliance!
+
+In order to mimic IOSK specific behaviour, the shell and ELF dynalink
+library will be modified in order to look for LMprobe(), LMread....and
+in general the presence/absence of standard entry points. The dynalink
+shell is a building block for whatever SK will use the ELF dynamic 
+linkage, so future IOSK-specific changed will be placed in a specific
+directory.You are invited to use/suggest me modification to these building
+blocks and start implement SKs!
+
+Also, with less priority, is handy to have a more powerful shell. Now it's
+a bit crude.
+

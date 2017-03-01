@@ -1,0 +1,393 @@
+<!doctype html public "-//w3c//dtd html 4.0 transitional//en">
+<html>
+<head>
+   <meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1">
+   <meta name="GENERATOR" content="Mozilla/4.5C-Caldera [en] (X11; I; Linux 2.0.35 i586) [Netscape]">
+   <title>Graphics System Kernel Loadable Modules Specification</title>
+</head>
+<body>
+
+<center>
+<h1>
+<a NAME="Top"></a>Alliance Graphics System Kernel Loadable Modules Specification</h1></center>
+
+<center>
+<h1>
+Release 3</h1></center>
+
+<center>
+<address>
+Abel Mui&ntilde;o Vizcaino &lt;<a href="mailto:luc@redestb.es">luc@redestb.es</a>></address></center>
+
+<center>
+<address>
+Weston Pawlowski &lt;<a href="mailto:Weston@vMac.org">Weston@vMac.org</a>></address></center>
+
+<br>&nbsp;
+<p>&nbsp;
+<center>
+<p>February 23nd, 1999</center>
+
+<h2>
+Index</h2>
+
+<ol>
+<li>
+<a href="#Abstract">Abstract</a></li>
+
+<li>
+<a href="#Introduction">Introduction</a></li>
+
+<li>
+<a href="#Driver">Structure of a Card Driver</a></li>
+
+<li>
+<a href="#Init LMs">Initialization Loadable Modules</a></li>
+
+<ol>
+<li>
+<a href="#Init Description">lmDescription Symbol</a></li>
+
+<li>
+<a href="#Init Open">Opening Interface</a></li>
+
+<li>
+<a href="#Init Close">Closing Interface</a></li>
+
+<li>
+<a href="#Init Read">Reading Interface</a></li>
+
+<li>
+<a href="#Init Store">Storing Interface</a></li>
+</ol>
+
+<li>
+<a href="#Text LMs">Text Mode Loadable Modules</a></li>
+
+<ol>
+<li>
+<a href="#Text Description">lmDescription Symbol</a></li>
+
+<li>
+<a href="#Text Write">Writing Interface</a></li>
+
+<li>
+<a href="#Text Read">Reading Interface</a></li>
+</ol>
+
+<li>
+<a href="#2D LMs">Two-Dimensional Drawing Loadable Modules</a></li>
+
+<li>
+<a href="#3D LMs">Three-Dimensional Drawing Loadable Modules</a></li>
+
+<li>
+<a href="#FX LMs">Special Effects Drawing Loadable Modules</a></li>
+
+<li>
+<a href="#References">References</a></li>
+
+<li>
+<a href="#History">History</a></li>
+</ol>
+
+<h2>
+<a NAME="Abstract"></a>1. Abstract</h2>
+&nbsp;&nbsp;&nbsp; This documents describes the additional restrictions
+that a Loadable Module (LM) must follow to be used by the Graphics System
+Kernel (GrSK). These LMs will build the drivers for the video cards used
+by the GrSK, so the logical divisions of the drivers is also described.
+<div align=right><i><a href="#Top">[Top]</a></i></div>
+
+<hr NOSHADE WIDTH="100%">
+<br>&nbsp;
+<h2>
+<a NAME="Introduction"></a>2. Introduction</h2>
+&nbsp;&nbsp;&nbsp; Loadable Modules (LMs) are ELF shared objects which
+can be linked and unlinked from the executable at run time. LMs should
+be small, and grouping common functionality. The dessing on this paper
+tries to reflect that.
+<br>&nbsp;&nbsp;&nbsp; The LM model that Alliance uses was first thought
+as a way to expand a kernel possibilities. This includes supporting different
+hardware pieces, so they are ussually thought of as drivers. Even when
+this is not completly true, it is the only use that the GrSK will make
+of them. You can read the <a href="#References">references</a> for more
+information on LMs.
+<p>&nbsp;&nbsp;&nbsp; Also, the driver model comes from a discussion thread
+in the GrSK mailing list (you can also check the <a href="#References">references</a>
+for a link to the mailing list archive). This model will be discussed in
+detail right now. Just keep reading.
+<p>&nbsp;&nbsp;&nbsp; Through this document we will be using <i>must</i>
+to denote features that have to be followed exactly as described, while
+<i>should</i>
+indicates the preferred behavior. Other verbs like <i>can</i> or <i>may</i>
+are used to introduce suggest ions.
+<p>&nbsp;&nbsp;&nbsp; Through this document we will usually be talking
+of video devices. Even when this suggest hardware drivers, this model is
+not limited to those, thought. A driver for drawing in memory (out of the
+screen) could be written, and even one that displays to the printer or
+plotter (with the help of the IOSK, of course), and they will be considered
+video devices still (as long as it concerns to this document).
+<br>&nbsp;
+<div align=right><i><a href="#Top">[Top]</a></i></div>
+
+<hr NOSHADE WIDTH="100%">
+<h2>
+<a NAME="Driver"></a>3. Structure of a Video Driver</h2>
+&nbsp;&nbsp;&nbsp; Video card drivers (as any other driver in Alliance)
+will be made up by LMs. There are five categories of functions defined
+for a video card driver:
+<ol>
+<li>
+<b>Initialization</b></li>
+
+<br>This includes functions for entering in a given mode (text/graphic),
+setting and getting the parameters (resolution, color depth...) and related
+functions not directly focussed to displaying anything.
+<li>
+<b>Text mode</b></li>
+
+<br>Functions for managing the screen in text mode. Displaying text, changing
+colour attributes, capturing text...
+<li>
+<b>Two dimensional drawing functions</b></li>
+
+<br>The graphical conterpart of the text mode set of functions. Includes
+drawing text, points, lines, polylines, circles, bitmaps and other 2D stuff.
+<li>
+<b>Three dimensional drawing functions</b></li>
+
+<br>Extends the 2D set of functions to allow tridimensional drawings (x,y
+and z coordinates for each point). Also allows drawing 3D figures like
+spheres.
+<li>
+<b>Special effects drawing functions</b></li>
+
+<br>Extrange functions like fog or lights.</ol>
+&nbsp;&nbsp;&nbsp; The most common video cards will only implement the
+three first categories, while 3dFx cards will probably implement all of
+them.
+<br>&nbsp;&nbsp;&nbsp; Each of these categories can (but is not required
+to) be implemented in a different LM. The GrSK should check its configuration
+to know which LMs to use for a particular driver.
+<p>&nbsp;&nbsp;&nbsp; The group to which an LM belongs will be shown in
+the lmType field of the lmDescription symbol, so the five lowest bytes
+of it are used. This way GrSK can check if the LM implements a given set
+of functions by using a mask and the bitwise and operation.
+<p>&nbsp;&nbsp;&nbsp; Most (or all) LM functions take a <tt>ScreenId</tt>
+as the first parameter. It identifies the virtual screen to which the functions
+apply. Only one virtual screen can be visible at a given time on a given
+hardware device (i.e. you can only display one virtual screen on your monitor
+at a time), but this does <b>not</b> forbid an application of copying the
+contents of a virtual screen to the currently visible one (implementing
+something like a "picture-in-picture" display, or displaying a bitmap drawn
+out of sight in a hidden window).
+<div align=right><i><a href="#Top">[Top]</a></i></div>
+
+<hr NOSHADE WIDTH="100%">
+<h2>
+<a NAME="Init LMs"></a>4. Initialization Loadable Modules</h2>
+&nbsp;&nbsp;&nbsp; This LMs group the basic functionalities of the driver,
+but does not include any drawing function.
+<br>&nbsp;&nbsp;&nbsp; All the interfaces can be used, but GrSK should
+be able to work with less interfaces <i>[We should check exactly which
+(Luc)***]</i>. For normal operation, an Initialization GrSK LM must provide
+<b>Opening</b>
+and <b>Reading</b> interfaces, and support either text or graphics mode.
+<p>&nbsp;&nbsp;&nbsp; We will mention several times the fact of "keeping
+the screen contents" while changing video modes. This means that the LM
+is able to adapt the color depth of the existing image to the new one,
+and clip the image to the new resolution (or add black area arround, if
+the new resolution is bigger). It does not involve any kind of resizing.
+<br>&nbsp;&nbsp;&nbsp; If the LM does not support this feature, the GrSK
+must return the error code <tt>ERRGrLMCANTKEEP</tt> when a caller tries
+to use it.
+<ul>
+<h3>
+<a NAME="Init Description"></a>4.1. lmDescription Symbol</h3>
+&nbsp;Required values in the lmDescription symbol of an Initialization
+GrSK LM are:
+<ul>
+<li>
+<tt><b>lmOwner</b>:</tt> should be the constant identifying the lowest
+version of the GrSk which can use this LM (i.e. <tt>LMIOSK1</tt>)</li>
+
+<li>
+<b><tt>lmType</tt></b>: 0x01</li>
+
+<li>
+<b><tt>canOpen</tt></b>: <tt>TRUE</tt></li>
+
+<li>
+<b><tt>canRead</tt></b>: <tt>TRUE</tt></li>
+
+<li>
+<b><tt>info</tt></b>: a comma separated list of recognized tokens. It must
+contain the string <tt>"ONLY_TEXT"</tt> if no graphic mode is supported
+and <tt>"ONLY_GRAPH"</tt> if no text mode is supported. Including both
+options is not allowed. "<tt>CAN_KEEP"</tt> must be asserted if the LM
+can
+keep the screen contents when changing the video mode.</li>
+</ul>
+Check the complete description of the lmDescription symbol in the latest
+release of the LM specification (see the <a href="#References">references</a>
+section).
+<div align=right><i><a href="#Top">[Top]</a></i></div>
+
+<hr ALIGN=RIGHT NOSHADE WIDTH="75%"></ul>
+
+<ol>
+<h3>
+<a NAME="Init Open"></a>4.2. Opening Interface</h3>
+The oppening interface is built by the default mode initialization routines
+and a generic function to change to any supported video mode. Functions
+for enabling a default mode never keep the screen contents.
+<p>&nbsp;<b><tt>GrSKError openMode (ScreenId vScreen, VScrInfo* vScreenInfo,
+Boolean keepContents)</tt></b>
+<br>&nbsp;&nbsp;&nbsp; Sets the device identified by <tt>vScreen</tt> to
+the parameters pointed by <tt>vScreenInfo</tt> when possible. It is a pointer
+to minimize the ammount of data passed in each call. It can keep the screen
+contents if the LM supports it and the option is enabled (<b><tt>keepContents</tt></b>
+is set to <tt>TRUE</tt>).
+<p><b><tt>GrSKError resetMode (ScreenId vScreen)</tt></b>
+<br>&nbsp;&nbsp;&nbsp; Resets the state of the device identified by <tt>vScreen</tt>
+to the defaults, including an empty display . It is similar to reopening
+the same mode using <tt>openMode()</tt> with <tt>keepContents</tt> set
+to <tt>FALSE</tt>, but&nbsp;<tt> </tt>.
+<div align=right><i><a href="#Top">[Top]</a></i></div>
+
+<hr ALIGN=RIGHT NOSHADE WIDTH="75%">
+<h3>
+<a NAME="Init Close"></a>4.3. Closing Interface</h3>
+If the LM supports Closing interface, <b><tt>openMode()</tt></b> in the
+Opening interface must mantain an structure (a stack would do the work,
+and will be supposed for the functions description) with the video modes
+that have been opened (but not the current one).
+<p><b><tt>GrSKError closeCurrentMode (ScreenId vScreen, Boolean keepContents)</tt></b>
+<br>&nbsp;&nbsp;&nbsp; Reads the previous mode from the top of the stack
+(removing it) and sets it. If <b><tt>keepContents</tt></b> is <b><tt>TRUE</tt></b>,
+then only the areas that are beyond the bounds of the new mode are cleared.
+Colour conversion is made to allow the contents to be correctly seen in
+a mode with less color depth. <b><tt>keepContents</tt></b> is considered
+<b><tt>FALSE</tt></b>
+(despite of its real value) when changing from a graphic mode to a text
+one.
+<br>&nbsp;&nbsp;&nbsp; If the stack is empty, then the mode is reset by
+calling
+<b><tt>resetMode()</tt></b>.
+<p><b><tt>GrSKError closeGraphicMode (ScreenId vScreen)</tt></b>
+<br>&nbsp;&nbsp;&nbsp; Reads and discards data in the stack until it is
+empty or a text mode is found on it, in which case it is set. If the stack
+is empty on any read, the mode is reset by calling <b><tt>resetMode()</tt></b>.
+Contents are not kept.
+<p><b><tt>GrSKError closeTextMode (ScreenId vScreen)</tt></b>
+<br>&nbsp;&nbsp;&nbsp; Similar to the previous one, but it discards text
+modes until it reaches the empty stack (and calls <b><tt>resetMode()</tt></b>)&nbsp;
+or finds a non graphical mode. In that case, the mode is set for the given
+screen. In any of both cases, the contents of the screen are not kept.
+<div align=right><i><a href="#Top">[Top]</a></i></div>
+
+<hr ALIGN=RIGHT NOSHADE WIDTH="75%">
+<h3>
+<a NAME="Init Read"></a>4.4. Reading Interface</h3>
+The reading interface is built up of a set of exported constants, variables
+and functions. The variables can be updated by the LM itself, but must
+not be changed by the GrSK. They are provided as variables to avoid the
+overhead of a function call (note that they can not be <tt>#define</tt>d)
+<p>These can be used by the GrSK itself to avoid parsing the <tt>info</tt>
+field of the <tt>lmDescription</tt> symbol:
+<p><b><tt>CONST Boolean canKeepContents</tt></b>
+<br><b>&nbsp;&nbsp;&nbsp; </b><tt>TRUE</tt> if the LM can always keep the
+screen contents when changing the video mode. Must match the contents of
+the <tt>lmDescription</tt> symbol.
+<p><b><tt>CONST Boolean canDisplayText</tt></b>
+<br><b>&nbsp;&nbsp;&nbsp; </b><tt>TRUE</tt> if the LM has support for text
+mode. Must match the contents of the <tt>lmDescription</tt> symbol.
+<p><b><tt>CONST Boolean canDisplayGraphics</tt></b>
+<br><b>&nbsp;&nbsp;&nbsp; </b><tt>TRUE</tt> if the LM has support for graphical
+mode. Must match the contents of the <tt>lmDescription</tt> symbol.
+<div align=right><i><a href="#Top">[Top]</a></i></div>
+
+<hr ALIGN=RIGHT NOSHADE WIDTH="75%">
+<h3>
+<a NAME="Init Store"></a>4.5. Storing Interface</h3>
+<i>NOTE: This whole interface could be completely removed and leave its
+functionality be implemented at an application level. However, implementing
+it here allows us to boot into a given configuration.</i>
+<p>The functions contained in this interface allows the LM to save its
+state on a "permanent" media (most often the disk).
+<p><i>NOTE: How the data is stored is not clear by now. I would suggest
+having a branch in each user's entry on the registry to store different
+configurations. The name given to this functions would specify the configuration
+to which this data is added.</i>
+<p><b><tt>GrSKError saveInitializationState (String * presetName)</tt></b>
+<br>&nbsp;&nbsp;&nbsp; Stores the current defaults (<b><tt>defaultMode</tt></b>,
+<b><tt>defaultTextMode</tt></b>
+and <b><tt>defaultGraphicMode</tt></b>) under the <b><tt>presetName</tt></b>
+configuration for the calling user.
+<p><b><tt>GrSKError restoreMode (String * presetName)</tt></b>
+<br>&nbsp;&nbsp;&nbsp; Reads the defaults stored under the given configuration
+name for the calling user.</ol>
+
+<div align=right><i><a href="#Top">[Top]</a></i></div>
+
+<hr NOSHADE WIDTH="100%">
+<h2>
+<a NAME="Text LMs"></a>6. Text Mode Loadable Modules</h2>
+&nbsp;
+<ol>
+<h3>
+<a NAME="Text Description"></a>6.1. lmDescription Symbol</h3>
+&nbsp;
+<div align=right><i><a href="#Top">[Top]</a></i></div>
+
+<hr ALIGN=RIGHT NOSHADE WIDTH="75%">
+<h3>
+<a NAME="Text Write"></a>6.2. Writing Interface</h3>
+
+<div align=right><i><a href="#Top">[Top]</a></i></div>
+
+<hr ALIGN=RIGHT NOSHADE WIDTH="75%">
+<h3>
+<a NAME="Text Read"></a>6.3. Reading Interface</h3>
+</ol>
+
+<div align=right><i><a href="#Top">[Top]</a></i></div>
+
+<hr NOSHADE WIDTH="100%">
+<h2>
+<a NAME="2D LMs"></a>7. Two-Dimensional Drawing Loadable Modules</h2>
+&nbsp;
+<div align=right><i><a href="#Top">[Top]</a></i></div>
+
+<hr NOSHADE WIDTH="100%">
+<h2>
+<a NAME="3D LMs"></a>8. Three-Dimensional Drawing Loadable Modules</h2>
+&nbsp;
+<div align=right><i><a href="#Top">[Top]</a></i></div>
+
+<hr NOSHADE WIDTH="100%">
+<h2>
+<a NAME="FX LMs"></a>9. Special Effects Drawing Loadable Modules</h2>
+&nbsp;
+<div align=right><i><a href="#Top">[Top]</a></i></div>
+
+<hr NOSHADE WIDTH="100%">
+<h2>
+<a NAME="References"></a>10. References</h2>
+Alliance OS Web Site: <a href="http://www.AllOS.org">www.AllOS.org</a>
+<div align=right><i><a href="#Top">[Top]</a></i></div>
+
+<hr NOSHADE WIDTH="100%">
+<h2>
+<a NAME="History"></a>11. History</h2>
+&nbsp;
+<div align=right><i><a href="#Top">[Top]</a></i></div>
+
+<hr NOSHADE WIDTH="100%">
+<hr>
+<center>ZZZXXXZZZ</center>
+E-group home: <a href="http://www.eGroups.com/list/alliance-grsk">http://www.eGroups.com/list/alliance-grsk</a>
+<br>Free Web-based e-mail groups by <a href="http://www.eGroups.com">www.eGroups.com</a>
+</body>
+</html>

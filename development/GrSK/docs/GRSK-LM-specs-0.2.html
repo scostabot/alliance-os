@@ -1,0 +1,527 @@
+<HTML>
+<HEAD>
+   <META HTTP-EQUIV="Content-Type" CONTENT="text/html; charset=iso-8859-1">
+   <TITLE>Graphics System Kernel Loadable Modules Specification</TITLE>
+</HEAD>
+<BODY>
+
+<CENTER>
+<H1>
+<A NAME="Top"></A>Alliance Graphics System Kernel Loadable Modules Specification</H1></CENTER>
+
+<CENTER>
+<H1>
+Release 2</H1></CENTER>
+
+<CENTER>
+<ADDRESS>
+Abel Mui&ntilde;o Vizcaino &lt;<A HREF="mailto:luc@redestb.es">luc@redestb.es</A>></ADDRESS></CENTER>
+
+
+<CENTER>
+<ADDRESS>
+Weston Pawlowski &lt;<A HREF="mailto:Weston@vMac.org">Weston@vMac.org</A>></ADDRESS></CENTER>
+
+
+<CENTER>December 22nd, 1998</CENTER>
+
+<H2>
+Index</H2>
+
+<OL>
+<LI>
+<A HREF="#Abstract">Abstract</A></LI>
+
+<LI>
+<A HREF="#Introduction">Introduction</A></LI>
+
+<LI>
+<A HREF="#Driver">Structure of a Card Driver</A></LI>
+
+<LI>
+<A HREF="#Init LMs">Initialization Loadable Modules</A></LI>
+
+<OL>
+<LI>
+<A HREF="#Init Description">lmDescription Symbol</A></LI>
+
+<LI>
+<A HREF="#Init Open">Opening Interface</A></LI>
+
+<LI>
+<A HREF="#Init Close">Closing Interface</A></LI>
+
+<LI>
+<A HREF="#Init Write">Writing Interface</A></LI>
+
+<LI>
+<A HREF="#Init Read">Reading Interface</A></LI>
+
+<LI>
+<A HREF="#Init Store">Storing Interface</A></LI>
+</OL>
+
+<LI>
+<A HREF="#All LMs">All Loadable Modules</A></LI>
+
+<OL>
+
+<LI>
+<A HREF="#All Write">Writing Interface</A></LI>
+
+<LI>
+<A HREF="#All Read">Reading Interface</A></LI>
+</OL>
+
+
+<LI>
+<A HREF="#Text LMs">Text Mode Loadable Modules</A></LI>
+
+<OL>
+<LI>
+<A HREF="#Text Description">lmDescription Symbol</A></LI>
+
+<LI>
+<A HREF="#Text Write">Writing Interface</A></LI>
+
+<LI>
+<A HREF="#Text Read">Reading Interface</A></LI>
+</OL>
+
+<LI>
+<A HREF="#2D LMs">Two-Dimensional Drawing Loadable Modules</A></LI>
+
+<LI>
+<A HREF="#3D LMs">Three-Dimensional Drawing Loadable Modules</A></LI>
+
+<LI>
+<A HREF="#FX LMs">Special Effects Drawing Loadable Modules</A></LI>
+
+<LI>
+<A HREF="#References">References</A></LI>
+
+<LI>
+<A HREF="#History">History</A></LI>
+</OL>
+
+<H2>
+<A NAME="Abstract"></A>1. Abstract</H2>
+&nbsp;&nbsp;&nbsp; This documents describes the additional restrictions
+that a Loadable Module (LM) must follow to be used by the Graphics System
+Kernel (GrSK). These LMs will build the drivers for the video cards used
+by the GrSK, so the logical divisions of the drivers is also described.
+<DIV ALIGN=right><I><A HREF="#Top">[Top]</A></I></DIV>
+
+<HR NOSHADE WIDTH="100%">
+<BR>&nbsp;
+<H2>
+<A NAME="Introduction"></A>2. Introduction</H2>
+&nbsp;&nbsp;&nbsp; Loadable Modules (LMs) are ELF shared objects which
+can be linked and unlinked from the executable at run time. LMs should
+be small, and grouping common functionality. The dessing on this paper
+tries to reflect that.
+<BR>&nbsp;&nbsp;&nbsp; The LM model that Alliance uses was first thought
+as a way to expand a kernel possibilities. This includes supporting different
+hardware pieces, so they are ussually thought of as drivers. Even when
+this is not completly true, it is the only use that the GrSK will make
+of them. You can read the <A HREF="#References">references</A> for more
+information on LMs.
+
+<P>&nbsp;&nbsp;&nbsp; Also, the driver model comes from a discussion thread
+in the GrSK mailing list (you can also check the <A HREF="#References">references</A>
+for a link to the mailing list archive). This model will be discussed in
+detail right now. Just keep reading.
+
+<P>&nbsp;&nbsp;&nbsp; Through this document we will be using <I>must</I>
+to denote features that have to be followed exactly as described, while
+<I>should</I> indicates the preferred behavior. Other verbs like <I>can</I>
+or <I>may</I> are used to introduce suggest ions.
+
+<P>&nbsp;&nbsp;&nbsp; Through this document we will usually be talking
+of video devices. Even when this suggest hardware drivers, this model is
+not limited to those, thought. A driver for drawing in memory (out of the
+screen) could be written, and even one that displays to the printer or plotter
+(with the help of the IOSK, of course), and they will be considered video
+devices still (as long as it concerns to this document).
+<BR>&nbsp;
+<DIV ALIGN=right><I><A HREF="#Top">[Top]</A></I></DIV>
+
+<HR NOSHADE WIDTH="100%">
+<H2>
+<A NAME="Driver"></A>3. Structure of a Video Driver</H2>
+&nbsp;&nbsp;&nbsp; Video card drivers (as any other driver in Alliance)
+will be made up by LMs. There are five categories of functions defined
+for a video card driver:
+<OL>
+<LI>
+<B>Initialization</B></LI>
+
+<BR>This includes functions for entering in a given mode (text/graphic),
+setting and getting the parameters (resolution, color depth...) and related
+functions not directly focussed to displaying anything.
+<LI>
+<B>Text mode</B></LI>
+
+<BR>Functions for managing the screen in text mode. Displaying text, changing
+colour attributes, capturing text...
+<LI>
+<B>Two dimensional drawing functions</B></LI>
+
+<BR>The graphical conterpart of the text mode set of functions. Includes
+drawing text, points, lines, polylines, circles, bitmaps and other 2D stuff.
+<LI>
+<B>Three dimensional drawing functions</B></LI>
+
+<BR>Extends the 2D set of functions to allow tridimensional drawings (x,y
+and z coordinates for each point). Also allows drawing 3D figures like
+spheres.
+<LI>
+<B>Special effects drawing functions</B></LI>
+
+<BR>Extrange functions like fog or lights.</OL>
+&nbsp;&nbsp;&nbsp; The most common video cards will only implement the
+three first categories, while 3dFx cards will probably implement all of
+them.
+<BR>&nbsp;&nbsp;&nbsp; Each of these categories can (but is not required
+to) be implemented in a different LM. The GrSK should check its configuration
+to know which LMs to use for a particular driver.
+
+<P>&nbsp;&nbsp;&nbsp; The group to which an LM belongs will be shown in
+the lmType field of the lmDescription symbol, so the five lowest bytes
+of it are used. This way GrSK can check if the LM implements a given set
+of functions by using a mask and the bitwise and operation.
+
+<P>&nbsp;&nbsp;&nbsp; Most (or all) LM functions take a <TT>ScreenId</TT>
+as the first parameter. It identifies the virtual screen to which the functions
+apply. Only one virtual screen can be visible at a given time on a given
+hardware device (i.e. you can only display one virtual screen on your monitor at
+a time), but this does <B>not</B> forbid an application of copying the contents
+of a virtual screen to the currently visible one (implementing something
+like a "picture-in-picture" display, or displaying a bitmap drawn out of
+sight in a hidden window).
+<DIV ALIGN=right><I><A HREF="#Top">[Top]</A></I></DIV>
+
+<HR NOSHADE WIDTH="100%">
+<H2>
+<A NAME="Init LMs"></A>4. Initialization Loadable Modules</H2>
+&nbsp;&nbsp;&nbsp; This LMs group the basic functionalities of the driver,
+but does not include any drawing function.
+<BR>&nbsp;&nbsp;&nbsp; All the interfaces can be used, but GrSK should
+be able to work with less interfaces <I>[We should check exactly which
+(Luc)***]</I>. For normal operation, an Initialization GrSK LM must provide
+<B>Opening</B> and <B>Reading</B> interfaces, and support either text or
+graphics mode.
+
+<P>&nbsp;&nbsp;&nbsp; We will mention several times the fact of "keeping
+the screen contents" while changing video modes. This means that the LM
+is able to adapt the color depth of the existing image to the new one,
+and clip the image to the new resolution (or add black area arround, if
+the new resolution is bigger). It does not involve any kind of resizing.
+<BR>&nbsp;&nbsp;&nbsp; If the LM does not support this feature, the GrSK
+must return the error code <TT>ERRGrLMCANTKEEP</TT> when a caller tries
+to use it.
+<UL>
+<H3>
+<A NAME="Init Description"></A>4.1. lmDescription Symbol</H3>
+&nbsp;Required values in the lmDescription symbol of an Initialization
+GrSK LM are:
+<UL>
+<LI>
+<TT><B>lmOwner</B>:</TT> should be the constant identifying the lowest
+version of the GrSk which can use this LM (i.e. <TT>LMIOSK1</TT>)</LI>
+
+<LI>
+<B><TT>lmType</TT></B>: 0x01</LI>
+
+<LI>
+<B><TT>canOpen</TT></B>: <TT>TRUE</TT></LI>
+
+<LI>
+<B><TT>canRead</TT></B>: <TT>TRUE</TT></LI>
+
+<LI>
+<B><TT>info</TT></B>: a comma separated list of recognized tokens. It must
+contain the string <TT>"ONLY_TEXT"</TT> if no graphic mode is supported
+and <TT>"ONLY_GRAPH"</TT> if no text mode is supported. Including both
+options is not allowed. "<TT>CAN_KEEP"</TT> must be asserted if the LM
+can keep the screen contents when changing the video mode.</LI>
+</UL>
+Check the complete description of the lmDescription symbol in the latest
+release of the LM specification (see the <A HREF="#References">references</A>
+section).
+<DIV ALIGN=right><I><A HREF="#Top">[Top]</A></I></DIV>
+
+<HR ALIGN=RIGHT NOSHADE WIDTH="75%"></UL>
+
+<OL>
+<H3>
+<A NAME="Init Open"></A>4.2. Opening Interface</H3>
+The oppening interface is built by the default mode initialization routines
+and a generic function to change to any supported video mode. Functions
+for enabling a default mode never keep the screen contents.
+
+<P>&nbsp;<B><TT>GrSKError openDefaultMode (ScreenId screen)</TT></B>
+<BR>&nbsp;&nbsp;&nbsp; Sets the video device identified by <TT>screen</TT>
+to an initial, hardcoded state. This should be the configuration where
+the device is more likely to work, (i.e. 80x25 text mode, or 640x480x16
+graphical mode), and should default to text mode in drivers that support
+it.
+<BR>&nbsp;&nbsp;&nbsp; This mode should allow the use of the driver for
+the widest range of non 100% compatible adapters. The idea behind this
+is allowing the newest hardware devides to work with older drivers while
+they do not have its own one, and viceversa (old hardware without drivers
+use newer drivers for different hardware working at lower capabilities)
+
+<P><B><TT>GrSKError openDefaultTextMode (ScreenId vScreen)</TT></B>
+<BR>&nbsp;&nbsp;&nbsp; Should have the same effect as <TT>openDefaultVideoMode()</TT>.
+In this case the hardcoded state must be a text-mode configuration.
+
+<P><B><TT>GrSKError openDefaultGraphicMode (ScreenId vScreen)</TT></B>
+<BR>&nbsp;&nbsp;&nbsp; Initializes the video device to a hardcoded state
+using a graphical display. This state should be one known to work in most
+configurations (i.e. 640x480x16). Like in <TT>openDefaultVideoMode()</TT>,
+the chosen mode should allow the use of non 100% compatible adapters.
+
+<P><B><TT>GrSKError openMode (ScreenId vScreen, VScrInfo* vScreenInfo,
+Boolean keepContents)</TT></B>
+<BR>&nbsp;&nbsp;&nbsp; Sets the device identified by <TT>vScreen</TT> to
+the parameters pointed by <TT>vScreenInfo</TT> when possible. It is a pointer
+to minimize the ammount of data passed in each call. It can keep the screen
+contents if the LM supports it and the option is enabled (<B><TT>keepContents</TT></B>
+is set to <TT>TRUE</TT>).
+<DIV ALIGN=right><I><A HREF="#Top">[Top]</A></I></DIV>
+
+<HR ALIGN=RIGHT NOSHADE WIDTH="75%">
+<H3>
+<A NAME="Init Close"></A>4.3. Closing Interface</H3>
+If the LM supports Closing interface, all the functions in the Opening
+interface must mantain an structure (a stack would do the work, and will
+be supposed for the function description) of the video modes that have
+been <B><TT>set</TT></B> (but not the current one).
+
+<P><B><TT>GrSKError closeCurrentMode (ScreenId vScreen, Boolean keepContents)</TT></B>
+<BR>&nbsp;&nbsp;&nbsp; Reads the previous mode from the top of the stack
+(removing it) and sets it. If <B><TT>keepContents</TT></B> is <B><TT>TRUE</TT></B>,
+then only the areas that are beyond the bounds of the new mode are cleared.
+Colour conversion is made to allow the contents to be correctly seen in
+a mode with less color depth. <B><TT>keepContents</TT></B> is considered
+<B><TT>FALSE</TT></B> (despite of its real value) when changing from a
+graphic mode to a text one.
+<BR>&nbsp;&nbsp;&nbsp; If the stack is empty, then the mode is set by calling
+<B><TT>setDefaultMode()</TT></B>.
+
+<P><B><TT>GrSKError closeGraphicMode (ScreenId vScreen)</TT></B>
+<BR>&nbsp;&nbsp;&nbsp; Reads and discards data in the stack until it is
+empty or a text mode is found on it, in which case it is set. If the stack
+is empty on any read, the mode is set by calling <B><TT>setDefaultTextMode()</TT></B>.
+Contents are not kept.
+
+<P><B><TT>GrSKError closeTextMode (ScreenId vScreen)</TT></B>
+<BR>&nbsp;&nbsp;&nbsp; Similar to the previous one, but it discards graphical
+modes until it reaches the empty stack (and calls <B><TT>setDefaultGraphicMode()</TT></B>)&nbsp;
+or finds a non graphical mode. In that case, the mode is set for the given
+screen. In any of both cases, the contents are not kept.
+<DIV ALIGN=right><I><A HREF="#Top">[Top]</A></I></DIV>
+
+<HR ALIGN=RIGHT NOSHADE WIDTH="75%">
+<H3>
+<A NAME="Init Write"></A>4.4. Writing Interface</H3>
+The functions in the writing interface allow to change the default behaviour
+of the LM, but do not make any changes to the display. They will need some
+external support to store the changes, and an LM implementing this interface
+should check its configuration on startup and update it accordingly (<I>NOTE:
+The place where this information will be stored is the registry, which
+will probably be implemented either as a bunch of text files or an OODB
+[Luc]).</I>
+
+<P><B><TT>GrSKError setDefaultMode (VScrInfo * vScreenInfo)</TT></B>
+<BR>&nbsp;&nbsp;&nbsp; Sets the default video mode (the one that is set
+with the <B><TT>openDefaultMode()</TT></B> call) to the given one. Error
+check must be done to enssure that it is a mode supported by the LM before
+updating the registry.
+
+<P><B><TT>GrSKError setDefaultTextMode (VScrInfo * vScreenInfo)</TT></B>
+<BR>&nbsp;&nbsp;&nbsp; Sets the default text mode (the one that is set
+with the <B><TT>openDefaultTextMode()</TT></B> call) for the LM. Error
+check must be done to enssure that it is a mode supported by the LM before
+updating the registry.
+
+<P><B><TT>GrSKError setDefaultGraphicMode (VScrInfo * vScreenInfo)</TT></B>
+<BR>&nbsp;&nbsp;&nbsp; Sets the default graphical mode (the one that is
+set with the <B><TT>openDefaultGraphicMode()</TT></B> call) for the LM.
+Error check must be done to enssure that it is a mode supported by the
+LM before updating the registry.
+<DIV ALIGN=right><I><A HREF="#Top">[Top]</A></I></DIV>
+
+<HR ALIGN=RIGHT NOSHADE WIDTH="75%">
+<H3>
+<A NAME="Init Read"></A>4.5. Reading Interface</H3>
+The reading interface is built up of a set of exported constants, variables
+and functions. The variables can be updated by the LM itself, but must
+not be changed by the GrSK. They are provided as variables to avoid the
+overhead of a function call (note that they can not be <TT>#define</TT>d)
+
+<P>These can be used by the GrSK itself to avoid parsing the <TT>info</TT>
+field of the <TT>lmDescription</TT> symbol:
+
+<P><B><TT>CONST Boolean canKeepContents</TT></B>
+<BR><B>&nbsp;&nbsp;&nbsp; </B><TT>TRUE</TT> if the LM can always keep the
+screen contents when changing the video mode. Must match the contents of
+the <TT>lmDescription</TT> symbol.
+
+<P><B><TT>CONST Boolean canDisplayText</TT></B>
+<BR><B>&nbsp;&nbsp;&nbsp; </B><TT>TRUE</TT> if the LM has support for text
+mode. Must match the contents of the <TT>lmDescription</TT> symbol.
+
+<P><B><TT>CONST Boolean canDisplayGraphics</TT></B>
+<BR><B>&nbsp;&nbsp;&nbsp; </B><TT>TRUE</TT> if the LM has support for graphical
+mode. Must match the contents of the <TT>lmDescription</TT> symbol.
+
+<P>The following variables reflect the current configuration of the LM
+itself. The values of these variables migth be hardcoded if no writing
+interface is provided. In the other hand, when providing a writing interface,
+they must be updated at startup and in each call to writting interface
+functions.
+
+<P><B><TT>VScrInfo defaultMode</TT></B>
+<BR><B>&nbsp;&nbsp;&nbsp; </B>Contains the settings for the default video
+mode, which is enabled by <B><TT>openDefaultMode()</TT></B>.
+
+<P><B><TT>VScrInfo defaultTextMode</TT></B>
+<BR><B>&nbsp;&nbsp;&nbsp; </B>Contains the settings for the default text
+video mode, which is enabled by <B><TT>openDefaultTextMode()</TT></B>.
+
+<P><B><TT>VScrInfo defaultGraphicMode</TT></B>
+<BR><B>&nbsp;&nbsp;&nbsp; </B>Contains the settings for the default graphical
+video mode, which is enabled by <B><TT>openDefaultGraphicMode()</TT></B>.
+<DIV ALIGN=right><I><A HREF="#Top">[Top]</A></I></DIV>
+
+<HR ALIGN=RIGHT NOSHADE WIDTH="75%">
+<H3>
+<A NAME="Init Store"></A>4.6. Storing Interface</H3>
+<I>NOTE: This whole interface could be completely removed and leave its
+functionality be implemented at an application level. However, implementing
+it here allows us to boot into a given configuration.</I>
+
+<P>The functions contained in this interface allows the LM to save its
+state on a "permanent" media (most often the disk).<I></I>
+
+<P><I>NOTE: How the data is stored is not clear by now. I would suggest
+having a branch in each user's entry on the registry to store different
+configurations. The name given to this functions would specify the configuration
+to which this data is added.</I><I></I>
+
+<P><B><TT>GrSKError saveInitializationState (String * presetName)</TT></B>
+<BR>&nbsp;&nbsp;&nbsp; Stores the current defaults (<B><TT>defaultMode</TT></B>,
+<B><TT>defaultTextMode</TT></B> and <B><TT>defaultGraphicMode</TT></B>)
+under the <B><TT>presetName</TT></B> configuration for the calling user.
+
+<P><B><TT>GrSKError restoreMode (String * presetName)</TT></B>
+<BR>&nbsp;&nbsp;&nbsp; Reads the defaults stored under the given configuration
+name for the calling user.</OL>
+
+<DIV ALIGN=right><I><A HREF="#Top">[Top]</A></I></DIV>
+
+<HR NOSHADE WIDTH="100%">
+<H2>
+<A NAME="All LMs"></A>5. All Loadable Modules</H2>
+&nbsp;
+<OL>
+<H3>
+<A NAME="All Write"></A>5.1. Writing Interface</H3>
+&nbsp;
+
+<P><B><TT>GrSKError clear (ScreenId vScreen)</TT></B>
+<BR>&nbsp;&nbsp;&nbsp; Clears the contents of <B><TT>vScreen</TT></B>.</BR>
+
+<P><B><TT>GrSKError setPosition (ScreenId vScreen)</TT></B>
+<BR>&nbsp;&nbsp;&nbsp; Sets the current drawing position on <B><TT>vScreen</TT></B>. In text
+modes, coordinates are in characters; in graphics modes, coordinates are in
+pixels.</BR>
+
+<P><B><TT>GrSKError setColor (ScreenId vScreen, UWORD32 color)</TT></B>
+<BR>&nbsp;&nbsp;&nbsp; Sets the current drawing color for <B><TT>vScreen</TT></B> to
+the color value in <B><TT>color</TT></B>.</BR>
+
+
+<DIV ALIGN=right><I><A HREF="#Top">[Top]</A></I></DIV>
+
+<HR ALIGN=RIGHT NOSHADE WIDTH="75%">
+<H3>
+<A NAME="All Read"></A>5.2. Reading Interface</H3>
+&nbsp;</OL>
+
+<DIV ALIGN=right><I><A HREF="#Top">[Top]</A></I></DIV>
+
+
+<HR NOSHADE WIDTH="100%">
+<H2>
+<A NAME="Text LMs"></A>6. Text Mode Loadable Modules</H2>
+&nbsp;
+<OL>
+<H3>
+<A NAME="Text Description"></A>6.1. lmDescription Symbol</H3>
+&nbsp;
+<DIV ALIGN=right><I><A HREF="#Top">[Top]</A></I></DIV>
+
+<HR ALIGN=RIGHT NOSHADE WIDTH="75%">
+<H3>
+<A NAME="Text Write"></A>6.2. Writing Interface</H3>
+&nbsp;
+
+<P><B><TT>GrSKError putText (ScreenId vScreen, String * text)</TT></B>
+<BR>&nbsp;&nbsp;&nbsp; Puts <B><TT>text</TT></B> at current drawing
+position in the current drawing color on <B><TT>vScreen</TT></B>.</BR>
+
+
+<DIV ALIGN=right><I><A HREF="#Top">[Top]</A></I></DIV>
+
+<HR ALIGN=RIGHT NOSHADE WIDTH="75%">
+<H3>
+<A NAME="Text Read"></A>6.3. Reading Interface</H3>
+&nbsp;</OL>
+
+<DIV ALIGN=right><I><A HREF="#Top">[Top]</A></I></DIV>
+
+<HR NOSHADE WIDTH="100%">
+<H2>
+<A NAME="2D LMs"></A>7. Two-Dimensional Drawing Loadable Modules</H2>
+&nbsp;
+<DIV ALIGN=right><I><A HREF="#Top">[Top]</A></I></DIV>
+
+<HR NOSHADE WIDTH="100%">
+<H2>
+<A NAME="3D LMs"></A>8. Three-Dimensional Drawing Loadable Modules</H2>
+&nbsp;
+<DIV ALIGN=right><I><A HREF="#Top">[Top]</A></I></DIV>
+
+<HR NOSHADE WIDTH="100%">
+<H2>
+<A NAME="FX LMs"></A>9. Special Effects Drawing Loadable Modules</H2>
+&nbsp;
+<DIV ALIGN=right><I><A HREF="#Top">[Top]</A></I></DIV>
+
+<HR NOSHADE WIDTH="100%">
+<H2>
+<A NAME="References"></A>10. References</H2>
+
+Alliance OS Web Site: <A HREF="http://www.AllOS.org">www.AllOS.org</A>
+
+&nbsp;
+<DIV ALIGN=right><I><A HREF="#Top">[Top]</A></I></DIV>
+
+<HR NOSHADE WIDTH="100%">
+<H2>
+<A NAME="History"></A>11. History</H2>
+&nbsp;
+<DIV ALIGN=right><I><A HREF="#Top">[Top]</A></I></DIV>
+
+<HR NOSHADE WIDTH="100%">
+
+
+
+<hr><center>ZZZXXXZZZ</center>
+
+E-group home: <a href="http://www.eGroups.com/list/alliance-grsk">http://www.eGroups.com/list/alliance-grsk</a><br>
+Free Web-based e-mail groups by <a href="http://www.eGroups.com">www.eGroups.com</a><br>
+</body></html>

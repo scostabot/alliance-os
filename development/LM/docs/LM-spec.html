@@ -1,0 +1,390 @@
+<!doctype html public "-//w3c//dtd html 4.0 transitional//en">
+<html>
+<head>
+   <meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1">
+   <meta name="Author" content="Stefano Costa">
+   <title>Alliance Loadable Modules specification</title>
+</head>
+<body>
+
+<center>
+<h1><a NAME="Top"></a>Alliance Loadable Modules specification Release 1.6</h1>
+
+<address> Stefano Costa &lt;<a href="mailto://stefanocosta@netscape.net">stefanocosta@netscape.net</a>></address>
+
+<address> Abel Mui&ntilde;o Vizcaino &lt;<a href="mailto:luc@redestb.es">luc@redestb.es</a>></address>
+</center>
+
+<hr WIDTH="100%">
+<h2> Index</h2>
+
+<ol>
+<li> <a href="#Abstract">Abstract</a></li>
+
+<li> <a href="#Intro">Introduction</a></li>
+
+<li> <a href="#Implementation">Implementation</a></li>
+
+<ol>
+
+<li> <a href="#LMDescription"><tt>LMDescription</tt> symbol</a></li>
+
+<li> <a href="#Entry points">Generic LM entry points</a></li>
+<ol>
+<li> <a href="#Initialization">Initialization methods</a></li>
+</ol>
+<li> <a href="#Sample LM">Sample LM</a></li>
+<li> <a href="#Controlling LM">Controlling LMs</a></li>
+</ol>
+
+<li> <a href="#Using LMs">Using LMs</a></li>
+
+<ol>
+<li> <a href="#LM Lib">LM Library</a></li>
+</ol>
+
+<li> <a href="#LM Error handling">LM Error handling</a></li>
+
+<li> <a href="#Document History">Document history</a></li>
+</ol>
+
+<div align=right><i><a href="#Top">[Top]</a></i></div>
+
+<hr WIDTH="100%">
+<h2>
+<a NAME="Abstract"></a>1. Abstract</h2>
+&nbsp;&nbsp;&nbsp; This document describes the functional behaviour of
+Loadable Modules (LM) in the Alliance OS that are common to all possible
+LMs subsytem, since each System Kernel (SK) can add specific functionality
+to LMs.
+<div align=right><i><a href="#Top">[Top]</a></i></div>
+
+<hr WIDTH="100%">
+<h2>
+<a NAME="Intro"></a>2. Introduction</h2>
+&nbsp;&nbsp;&nbsp; In Alliance OS each <i>System Kernel</i> (<i>SK</i>) coordinates and give access rights to
+applications, while <i>Loadable Modules</i> (<i>LMs</i> for short)
+are pieces of code designed to provide low-level access to the Managed Elements
+(<i>ME</i>) of the given SK. Since the SKs are
+ defined on a functional basis (IOSK is the SK devoted to I/O management, NetSK is the SK devoted to network
+handling and so on), LMs are roughly the equivalent of <i>drivers</i>, only very
+specialized. This rigid separation between coordination tasks (what the SKs do)
+and the actual execution of the given job (the LMs) allows highly modular, very
+efficient and flexible MEs support, since each SK can define its own
+particular interface extending the specifications given in this document with
+task-specific, highly focused code design.
+<p>&nbsp;&nbsp;&nbsp; Features common to all types of LMs uniquely identify an LM as such, to which SK belongs to and a textual description of its identity.
+<p>&nbsp;&nbsp;&nbsp; Another very important feature of LMs is that
+the can be loaded and unloaded on-demand, maximizing an efficient use of memory
+resources since only needed LMs will be loaded, without bloating the code needed
+to have Alliance up and running.
+Moreover even useful LMs are not always needed at a given time, so loading and unloading specific LMs on need avoid useless memory consumption,
+allowing less powerful PCs to be successfully used. This features is also
+important in embedded devices.
+<p>&nbsp;&nbsp;&nbsp; Since LMs are functionally indipendent entities that
+perform a very specific tasks, they are convenient both for system programmers and system users.
+System programmers will like the highly modular, logically simple LM interface,
+which allows easy patching for hardware-driven update or patching in general. 
+System users will also like the Alliance OS modular approach since minimize 
+the risk of buggy code behaviour in overall system functionality, and also fosters the reuse of softare among different modules. 
+This helps on debugging too, since more code
+is used by many different entities, so we can say that LMs implement a
+component system.
+<p>&nbsp;&nbsp;&nbsp; An additional feature of LMs is that they
+can work together to achieve a task (for example, to access a file trough
+NFS, at least a protocol LM, a network device LM and a file system LM will
+be used). This is possible and convenient because LMs themselves do not have
+any IPC code, and communication code in order to get/put data in a LM chain is contained once for all in the devoted SK. It is the devoted SK that calls LMs and
+feed them with proper data.
+This document defines the very basic requirements that LMs must provide in order to implements this scheme, but in order to implement a real LM you have to follow also the specification document of the SK that will use the LM.
+<div align=right><i><a href="#Top">[Top]</a></i></div>
+
+<hr WIDTH="100%">
+<h2><a NAME="Implementation"></a>3. Implementation</h2>
+&nbsp;&nbsp;&nbsp; LM files are standard ELF object file executables. That is
+they are compiled but <i>unlinked</i> source code files.
+They contain position independent code to allow dynamic linking at any
+time (as well as unlinking). 
+The LMs are loaded/unloaded by SKs using the <a href="../../KL/Exec/docs/ExecLib.html">Executable Loader library</a> (which
+implements the load/unload of any ELF standard file, hence also LMs), coupled
+with code specific to LM conventions and symbols handling. In order
+to become an LM a number of global symbols must be defined in the LM source, and
+the code in the given SK will look for them. LM code may be written in any
+language, but symbol names must comply with C standard and also the function call prologue/epilogue.
+There is only one symbol which is mandatory in order to identify a module as
+an LM, and is the <tt>LMdescription</tt> symbol. All other symbols mentioned in
+this document are optional, that is,
+may be used or not by any given LM for any given SKs.
+A particular SK may impose other mandatory symbols, and if they are present
+are defined in the target SK specification document.
+
+<h3> <a NAME="LMDescription"></a>3.1. LMDescription symbol</h3>
+&nbsp;&nbsp;&nbsp; The unique required symbol for an LM is the <i>LM Description</i>
+structure, which is defined as being of type <tt>LMDescription</tt>:<p>
+<tt>
+typedef struct {
+<br>&nbsp;&nbsp;&nbsp; STRING * name; /* Descriptive name of this LM */
+<br>&nbsp;&nbsp;&nbsp; STRING * description;/* Any description the LM wants to provide */
+<br>&nbsp;&nbsp;&nbsp; LMOwner owner; /* Identifier of the SK owning the LM */
+<br>&nbsp;&nbsp;&nbsp; Version release; 
+<br>} LMDescription;
+</tt>
+<p>&nbsp;&nbsp;&nbsp; The fields name</tt> and <tt>description</tt>
+are free-form ASCIIZ strings (but it is recommended to keep <tt>name</tt> short).
+ They are included to provide textual information about what the LM implements.
+An example is "LM for Standard Parallel Port (SPP)" for <tt>name</tt> field, and
+"Write only interface for parallel port" for <tt>description</tt> field. Only
+<tt>name</tt> field is mandatory, you can put a null character in
+<tt>description</tt> field, though we encourage to put as much relevant info you
+could.
+<p>&nbsp;&nbsp;&nbsp; The <tt>owner</tt> field identifies the
+target SK for the LM. It is a 32 bit unsigned word value, with the following
+meanings:
+<br>&nbsp;
+<center><table CELLSPACING=0 >
+<tr ALIGN=CENTER VALIGN=TOP BGCOLOR="#000066">
+<td><b><font color="#FFFFFF">&nbsp; Value for <tt>owner&nbsp;</tt></font></b></td>
+
+<td><b><font color="#FFFFFF">&nbsp; Assigned Kernel&nbsp;</font></b></td>
+
+<td><b><font color="#FFFFFF">&nbsp;Constant&nbsp;</font></b></td>
+</tr>
+
+<tr ALIGN=CENTER VALIGN=TOP BGCOLOR="#CCCCCC">
+<td><tt>0x00000001</tt></td>
+
+<td>IOSK</td>
+
+<td><tt>LMIOSK</tt></td>
+</tr>
+
+<tr ALIGN=CENTER VALIGN=TOP BGCOLOR="#CCCCCC">
+<td><tt>0x00000002</tt></td>
+
+<td>FSSK</td>
+
+<td><tt>LMFSSK</tt></td>
+</tr>
+
+<tr ALIGN=CENTER VALIGN=TOP BGCOLOR="#C0C0C0">
+<td><tt>0x00000004</tt></td>
+
+<td>NetSK</td>
+
+<td><tt>LMNETSK</tt></td>
+</tr>
+
+<tr ALIGN=CENTER VALIGN=TOP BGCOLOR="#C0C0C0">
+<td><tt>0x00000008</tt></td>
+
+<td>GrSK</td>
+
+<td><tt>LMGRSK</tt></td>
+</tr>
+
+<tr ALIGN=CENTER VALIGN=TOP BGCOLOR="#CCCCCC">
+<td><tt>0x00000010</tt></td>
+
+<td>SndSK</td>
+
+<td><tt>LMSNDSK</tt></td>
+</tr>
+
+<tr ALIGN=CENTER VALIGN=TOP BGCOLOR="#CCCCCC">
+<td><tt>0x00000020</tt></td>
+
+<td>SSK</td>
+
+<td><tt>LMSSK</tt></td>
+</tr>
+
+<tr ALIGN=CENTER VALIGN=TOP BGCOLOR="#C0C0C0">
+<td><tt>0x00000040</tt></td>
+
+<td>UISK</td>
+
+<td><tt>LMUISK</tt></td>
+</tr>
+
+</table></center>
+
+<p>&nbsp;&nbsp;&nbsp; For checking if an LM belongs to a given SK the following
+macros can be used (they all receive an argument of type <tt>LMDescription</tt>):
+<br>
+<tt>
+<br>&nbsp;&nbsp;&nbsp; isIOSKLM (lmDescription)
+<br>&nbsp;&nbsp;&nbsp; isFSSKLM (lmDescription)
+<br>&nbsp;&nbsp;&nbsp; isNetSKLM(lmDescription)
+<br>&nbsp;&nbsp;&nbsp; isGrSKLM (lmDescription)
+<br>&nbsp;&nbsp;&nbsp; isSndSKLM(lmDescription)
+<br>&nbsp;&nbsp;&nbsp; isSSKLM (lmDescription)
+<br>&nbsp;&nbsp;&nbsp; isUISKLM (lmDescription)
+</tt>
+
+<p>&nbsp;&nbsp;&nbsp; The <tt>Version</tt> field contains the release number of the software
+that the LM in question implements. 
+
+<h3><a NAME="Entry points"></a>3.2. Generic LM entry points</h3>
+&nbsp;&nbsp;&nbsp; In addition to the <tt>LMDescription</tt> symbol, a number of
+entry points <i>may</i> be defined in any LM. That is, if the LM's ME need these
+methods they will be implemented in the code, otherwise these functions <i>will
+be not defined</i>.
+
+<h3><a NAME="Initialization"></a>3.2.1 Initialization methods</h3>
+&nbsp;&nbsp;&nbsp; These are the <tt>LMinit</tt> and <tt>LMuninit</tt> methods. 
+The <tt>LMinit</tt> method will contain any code needed by the LM in question as
+one-time-in-the-LM-life initialization stuff, since it is called once just after
+LM loading. Conversely the <tt>LMuninit</tt> method will be called once just before the LM is unloaded. Both methods returns a 32 bit word that contains the init/close status code: <tt>LMINITSUCCESS</tt>, <tt>LMINITERROR</tt> and <tt>LMUNINITSUCCESS</tt>, <tt>LMUNINITERR</tt>.
+<p><tt>UWORD32 LMinit(VOID);
+<br>UWORD32 LMuninit(VOID);
+</tt>
+<p>It is perfectly legal that in a given LM exist only LMinit method and not
+LMuninit or vice-versa, if the programmer want to do this, even if we don't
+encourage it.
+<h3><a NAME="LM functional probe"></a>3.2.2 LM functional probe</h3>
+
+&nbsp;&nbsp;&nbsp; An LM, without a standard method to inquire which kind of functionality 
+actually implements is of little value. As mentioned before however, LMs must
+be able to offer their services to very different entities, the SKs, without
+imposing unnatural functional limits but mantaining a coherent interface.<br>
+All these constraints are met using a Management-based metaphor, that is, an
+LM may define a Management Information Base (MIB) which precisely define 
+what a given SK can functionally control, in a well-defined and secure 
+interface. <br>
+The MIT metaphor allows also an object-oriented approach of what an LM can
+do and which interface it expots in order to control its behaviour. The function
+entry point is <tt>LMprobe</tt>:<p>
+
+<tt>BOOLEAN LMprobe(OUPUT MIB *mibptr);<br></tt>
+<br>
+If <tt>LMprobe()</tt> returns <tt>false</tt>, means that the LM in question 
+cannot work because it is not usable in the target environment. This can happen
+in a variety of situations, most commonly for hardware device drivers it actually
+means that the hardware that LM manages is not present at all. The parameter in
+output should be ignored (will be <tt>NULL</tt>).<br>
+If <tt>LMprobe()</tt> returns <tt>true</tt>, then the parameter in output will
+hold a pointer to the MIB structure that will tell target SK what the LM manages
+and what can be changed/controlled in a way or another.
+
+<h3><a NAME="Sample LM"></a>3.2.2.1 LM MIB structure</h3>
+
+&nbsp;&nbsp;&nbsp; A MIB stores in a convenient way the control interface that the target LM 
+expose to target SK. In the MIB are defined the <i>type</i>, <i>name</i>,
+<i>access modifier</i> and a <i>description</i> of any managed object entity.
+That is, if an LM that implements a serial interface want that the caller SK
+can set line speed 
+ 
+<h3><a NAME="Sample LM"></a>3.3 Sample LM</h3>
+&nbsp;&nbsp;&nbsp; Given the above definitions, the minimal LM module source
+is the following code:<p>
+<tt>
+/* File lm.c */
+<br>
+<br>#include &lt;lm.h&gt;
+<br>
+<br>LMDescription description={
+<br>&nbsp;&nbsp;&nbsp;"Minimal LM","An LM that does nothing, loadable by any SK",
+<br>&nbsp;&nbsp;&nbsp;LMIOSK|LMFSSK|LMNETSK|LMGRSK|LMSNDSK|LMSSK|LMUISK,
+<br>&nbsp;&nbsp;&nbsp;{ 1, 0, 0 } /* Version 1.0.0 */
+<br>}
+</tt><p>
+That is, only the <tt>LMDescription</tt> structure, without <tt>LMinit()</tt>,<tt>LMunInit()</tt> and <tt>LMprobe()</tt> entry points and even without program code. Such LM can
+be loaded by any SK since the owner field is set to all possible SKs, and this 
+LM must be loaded without error by all SKs, even if do nothing.
+
+<div align=right><i><a href="#Top">[Top]</a></i></div>
+
+<hr WIDTH="100%">
+<h2><a NAME="Using LMs"></a>4. Using LMs</h2>
+&nbsp;&nbsp;&nbsp; Until now we have discussed the way an LM must be written in
+order to be recognizable by SKs. In this section we will describe the methods an
+SK must use in order to load and interact with target LM. 
+
+<a NAME="LM Lib"></a>4.1. LM Loader Library</h3>
+&nbsp;&nbsp;&nbsp; The LM library will contain the <tt>LMopen</tt>, <tt>LMclose</tt> and
+<tt>LMgetSymbols</tt> functions. With these functions it is possible to load an
+LM, discover which functions implements, and eventually unload it.
+
+
+<p>&nbsp;&nbsp;&nbsp; Firstly the <a href="../../KL/Exec/docs/ExecLib.html">Executable Loader library</a> should be used (see specification document about it). The symbols common to all LMs described in this document are handled by the LM Loader library, linked toghether with Executable Loader library with SKs. It is modelled as an independent library because it is used by all SKs and a unique source base its both convenient and efficient.
+The use of the LM Loader library allows also the use of new LMs without having to modify the SK source code. Of course each SK must add its own LM-specific code handling in order to complement the generic LM library stuff.
+
+<div align=right><i><a href="#Top">[Top]</a></i></div>
+
+<hr WIDTH="100%">
+<h2><a NAME="LM Error handling"></a>5. LM Error handling</h2>
+&nbsp;&nbsp;&nbsp; When an LM detect an error, the LM primitive that entered
+a fault state returns to caller an error flag (a boolean value or a negative
+number, depending on LM primitive return codes). The SK that interact with
+the faulted LM can call LMerror() to probe additional info about the last
+error condition experienced by the LM. The function prototype is:
+<p><tt>typedef struct genError {
+<br>&nbsp;&nbsp;&nbsp; WORD32 code;
+<br>&nbsp;&nbsp;&nbsp; struct genError *next; } Error;
+<p>VOID LMerror(Error *lmError)</tt>
+
+<p>The LMerr structure uniquely identify an error. The <tt>description</tt>
+field holds a string that describes in a human-understandable way the error
+encountered. This is useful because there is a lot of different ways to
+reach a program failure, and simple category description like UNIX strerr()
+is not very helpful.
+<p>&nbsp;&nbsp;&nbsp; The field <tt>next</tt> holds a pointer to the next LM error code in the list, or <tt>NIL</TT> if this is the last. This is useful to
+mantain the trace of the chain of errors occurred, since the error once
+generated propagates from lower to upper levels. If each level concatenates the various error structures we will have a much detailed and helpful data in order to analize the error. Where SKs use LM chains, this behaviour is illuminating in considering bug effect and patches.
+<br>&nbsp;
+<div align=right>&nbsp;&nbsp;&nbsp; <i><a href="#Top">[Top]</a></i></div>
+
+<hr WIDTH="100%">
+<h2>
+<a NAME="Document History"></a>6. Document history</h2>
+
+<table WIDTH="100%" >
+<tr VALIGN=TOP>
+<td><b><i>Release 3</i></b></td>
+
+<td>by Abel Mui&ntilde;o (<i>a.k.a. Luc</i>) &lt;<a href="mailto:luc@redestb.es">luc@redestb.es</a>&gt;
+<br>18-Sep-1998
+<br>Major rewrote based on comments on previous releases</td>
+</tr>
+
+<tr VALIGN=TOP>
+<td><b><i>Release 4</i></b></td>
+
+<td>by Abel Mui&ntilde;o (<i>a.k.a. Luc</i>)
+<br>20-Oct-1998
+<br>Updates based on comments, added Open/Close interfaces, brief description
+of the LM library and minor format changes.
+<br>by Stefano Costa &lt;<a href="mailto:stefanocosta@netscape.net">stefanocosta@netscape.net</a>&gt;
+<br>28-Dec-1998
+<br>Compliant with Writing Guidelines, taken away older stuff no longer
+valid, added higher-level descriptions of LMs in general.&nbsp;
+<br>by Abel Mui&ntilde;o &lt;<a href="mailto:luc@redestb.es">luc@redestb.es</a>&gt;
+<br>7-Jan-1998
+<br>Fixed memory allocation macros, renamed LMSymbolStruct to LMSymbol,
+publication of this release to CVS.</td>
+</tr>
+
+<tr VALIGN=TOP>
+<td><b><i>Release 5</i></b></td>
+<br><td>by Stefano Costa &lt;<a href="mailto:stefanocosta@netscape.net">stefanocosta@netscape.net</a>&gt;
+<br>13-Feb-1999
+<br>Added paragraph LM error handling</td>
+</tr>
+
+<tr VALIGN=TOP>
+<td><b><i>Release 1.6</i></b></td>
+<br><td>by Stefano Costa &lt;<a href="mailto:stefanocosta@netscape.net">stefanocosta@netscape.net</a>&gt;
+<br>01-Feb-2001
+<br>changed the release number from 6 to 1.6 (Reason: uniform release number conve ntion among all project items)
+<br>specifications rewritten after implementation of Executable loader library
+<br>order of authors swapped since Luc has disappeared
+<br>HTML code cleaned up of nearly all rubbish inserted by Netscape
+<br>the filename does not have to change with the release, renamed to LM-specs.html</td>
+</tr>
+</table>
+
+<div align=right><i><a href="#Top">[Top]</a></i></div>
+
+<hr WIDTH="100%">
+</body>
+</html>

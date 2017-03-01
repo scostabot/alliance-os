@@ -1,0 +1,44 @@
+# Compile the Alliance Kernel Library Tester
+#
+# HISTORY
+# Date     Author    Rev    Notes
+# 22/10/98 scosta    1.0    First draft
+# 11/02/99 scosta    1.1    Added KLtrace support
+# 20/04/99 scosta    1.2    Added SKTRACE
+# 02/02/00 scosta    1.3    Deleted SKTRACE because now KLprint is used
+# 12/12/00 scosta    1.4    More dependancies
+# 21/12/03 scosta    1.5    Even more dependancies
+
+CC=@CC@
+CFLAGS=@CFLAGS@
+CPPFLAGS=@CPPFLAGS@
+AR=@AR@
+ARFLAGS=@ARFLAGS@
+RM=@RM@
+COMMONDEP=@COMMONDEP@
+
+FLAGS= -o $@ -c
+PPFLAGS= -I../../include 
+
+#  Part of LIBS will be set outside, so we guarantee omogeneous compile
+
+LIBS = -Lbinaries -L../Monitor/binaries -lstring -lmonitor
+OFLAGS= -o
+
+objects/%.o: %.c $(COMMONDEP) 
+	$(CC) $(CPPFLAGS) $(PPFLAGS) $(CFLAGS) $(FLAGS) $<
+
+SRCS= StringTester.c
+
+OBJS= objects/StringTester.o
+
+FINAL= ./binaries/TestString
+
+$(FINAL): $(OBJS) ./binaries/libstring.a ../Monitor/binaries/libmonitor.a
+	$(CC) $(OBJS) $(LIBS) $(OFLAGS) $@
+
+test:
+	$(FINAL)
+
+clean:
+	$(RM) $(OBJS) $(FINAL)

@@ -1,0 +1,238 @@
+<HTML>
+<HEAD>
+   <META HTTP-EQUIV="Content-Type" CONTENT="text/html; charset=iso-8859-1">
+   <META NAME="Author" CONTENT="Stefano Costa">
+   <META NAME="Classification" CONTENT="Drafts">
+   <META NAME="Description" CONTENT="Description of the dynamic linker shell.">
+   <META NAME="KeyWords" CONTENT="Alliance dynamic linker, AllianceKernel,  Kernel, Alliance, Specs, Draft">
+   <TITLE>Dynamic linker interactive shell</TITLE>
+</HEAD>
+<BODY>
+<font COLOR="Black" SIZE="3" FACE="Arial, Helvetica">
+
+<CENTER>
+<H1>Dynamic linker interactive shell</H1>
+
+<i> Stefano Costa &lt;<A HREF="mailto:stefanocosta@netscape.net">stefanocosta@netscape.net</A>&gt;</i>
+</CENTER>
+
+<H2>
+Index</H2>
+1. <A HREF="#Introduction">Introduction</A>
+<BR>2. <A HREF="#Build">How to build it</A>
+<BR>3. <A HREF="#Example">Example usage</A>
+<BR>4. <A HREF="#AdditionalCmds">Additional commands</A>
+<div align=right><i><a href="#Top">[Top]</a></i></div>
+
+<H2><A NAME="Introduction"></A>1. Introduction</H2>
+This is the first experimental effort in order to resolve at run-time
+function addresses.
+There are many possible approaches to dynamic linking. Here I have
+chosen the following one: launch a shell that allow users to interactevely
+interact with the linker. User indicates at command line which object files
+want to load and link, and launch the resulting "program" with a command,
+giving the name of a function as global entry point.
+It is possible to trace load and link operations using run-time tracing
+facilites, and change dynamically trace level.<p>
+<div align=right><i><a href="#Top">[Top]</a></i></div>
+
+<H2><A NAME="Build"></A>2. How to build it</H2>
+
+Sources are stored in research/dynalinker directory.
+These are the steps required to build the dynalinker environment:<p>
+
+-run configure script in order to generate building environment (goto directory
+ <TT>/alliance/research/dynalinker</TT> and type <TT>./configure</TT>)<br>
+-run <TT>make</TT><br>
+-compile sample ELF object/executable files:go to <TT>/samplecode</TT> directory and type <TT>make</TT><br>
+-launch the dynalinker shell interactive environment (<TT>/binaries/dynsh</TT>)<br><p>
+If you want to use a particular, customized version of C compiler or linker you can override whatever is probed by configure utility giving some command-line options:<p>
+<TT>
+--with-cc=&lt;absolute pathname of C compiler><br>
+--witn-ld=&lt;absolute pathname of linker><br>
+</TT><p>
+This option is very handy if you already have for other working purposes a different developmnt environment different from Alliance one, and you want to retain compatibility with your main environment. You can compile/install different development tools in your home directory and force these ones as the ones to be used:<p>
+<TT>
+stefano@linux:~/alliance> ./configure --with-cc=/home/stefano/gcc3.2/bin/gcc --with-ld=/usr/bin/ld
+</TT><p> 
+You are now ready to use the dynamic linker interactive shell.
+<div align=right><i><a href="#Top">[Top]</a></i></div>
+<H2><A NAME="Example"></A>3. Example usage</H2>
+
+Go to <TT>shell</TT> directory, and type "<TT>binaries/dynsh</TT>". You will see the shell prompt:<p>
+<TT>dynlink:~/alliance/research/dynalinker/shell></TT><p>
+As any other UNIX shell, the <TT>~</TT> character is the home directory symbol, and the current directory path is shown. From the prompt you can invoke internal commands, load ELF files or if none of the above applies, <dynsh> pass the command line to a standard UNIX shell like:<p>
+<TT>dynlink:~/alliance/research/dynalinker/shell>ls -l<br>
+total 52<br>
+drwxr-xr-x    2 stefano  cvs&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;4096 Dec 31 00:45 CVS<br>
+-rw-r--r--    1 stefano  cvs&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;1092 Dec 27 19:12 Makefile<br>
+-rw-r--r--    1 stefano  cvs&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;1097 Oct 30  2000 Makefile.in<br>
+drwxr-xr-x    3 stefano  cvs&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;4096 Dec 31 15:20 binaries<br>
+drwxr-xr-x    3 stefano  cvs&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;4096 Dec 28 01:19 include<br>
+drwxr-xr-x    3 stefano  cvs&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;4096 Dec 31 15:20 objects<br>
+-rw-r--r--    1 stefano  cvs&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;24702 Dec 31 14:50 shell.c<br>
+</TT><p>
+In the directory <TT>/samplecode</TT> there test files ready for being loaded and executed. Go to this directory typing "<TT>cd ../samplecode</TT>". To see directory contents, type "<TT>ls</TT>".<p>
+
+We will concentrate our attention to two of the files present, simplecaller.c and simplecalled.c. The following is the complete listing of two of them (but you can use <TT>cat</TT> command from shell if you prefer):<p>
+
+<TT>
+/* File simplecaller.c */<br>
+<br>
+int calledFunction(void);<br>
+<br>
+main()<br>
+<br>
+{<br>
+&nbsp;&nbsp;int i;<br>
+<br>
+&nbsp;&nbsp;i=calledFunction();<br>
+&nbsp;&nbsp;return(i);<br>
+}<br>
+<br>
+/* File simplecalled.c */<br>
+<br>
+int calledFunction(void)<br>
+<br>
+{<br>
+&nbsp;&nbsp;return(0x20);<br>
+}<br>
+</TT><p>
+
+We wish that the resulting dynalinked program start in main(), and so
+execute function named calledFunction() defined in a different object file.
+<div align=right><i><a href="#Top">[Top]</a></i></div>
+
+<H2><A NAME="AdditionalCmds"></A>4. Additional commands</H2>
+
+<H3>4.1. Memory command</H3>
+
+You can see the memory usage for the loaded file with memory command:<p>
+<TT>
+dynlink:~/alliance/research/dynalinker/samplecode>simplecalled.o<br>
+File &lt/home/stefano/alliance/research/dynalinker/samplecode/simplecalled.o> loaded<br>
+dynlink:~/alliance/research/dynalinker/samplecode>memory<br>
+<br>
+File /home/stefano/alliance/research/dynalinker/samplecode/simplecalled.o:<br>
+Control structures:&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;652d<br>
+<br>
+Loaded sections&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Size&nbsp;&nbsp;&nbsp;&nbsp;Alignement&nbsp;&nbsp;&nbsp;Address<br>
+---------------&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;----&nbsp;&nbsp;&nbsp;&nbsp;----------&nbsp;&nbsp;&nbsp;---------<br>
+ 1:<.text>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;32d&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;16&nbsp;&nbsp;&nbsp;0x8054a60<br>
+ 9:<.shstrtab>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;84d&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;1&nbsp;&nbsp;&nbsp;0x8054a08<br>
+10:<.symtab>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;176d&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;4&nbsp;&nbsp;&nbsp;0x8054a98<br>
+11:<.strtab>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;38d&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;1&nbsp;&nbsp;&nbsp;0x8054b50<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;------<br>
+Dynamic memory total:&nbsp;&nbsp;&nbsp;982d<br>
+File total size:&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;2260d<br>
+</TT><p>
+In the <TT>Control structures</TT> field is displayed the amount of memory needed in order to hold all informations about ELF structure (section directory, ELF headers) needed by the Dynamic Linker to do its job. Following this field there is the ELF memory table.  The first column display the section id of the loaded section. The second column displays the loaded section name and the third displays the sections size. Then the address alignement needed by that section and the current memory address for that section.
+In order to have a rough idea of the effective total amount of data used
+in an ELF memory image versus actual file contents, the program also displays the total memory amount used in order to store the program and the actual ELF file size.
+<h3>4.2. Symbols command</h3>
+
+You can display informations regarding symbol table entries of the loaded
+file with the symbols command:<p>
+<TT>
+dynlink:~/alliance/research/dynalinker/samplecode>symbols<br>
+<br>
+File /home/stefano/alliance/research/dynalinker/samplecode/simplecalled.o:<br>
+Symbol name&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;st_info&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;st_value  st_size  st_shndx<br>
+-----------&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;-------&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;--------  -------  --------<br>
+&lt;simplecalled.c>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(STB_LOCAL|STT_FILE)&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;0d&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;0d&nbsp;&nbsp;&nbsp;&nbsp;65521<br>
+&lt;Letext>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(STB_LOCAL|STT_NOTYPE)&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;20d&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;0d&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;1<br>
+&lt;calledFunction>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(STB_GLOBAL|STT_FUNC)&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;0d&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;20d&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;1<br>
+Number of symbols in table:3<br>
+</TT><p>
+On the left side you will see the symbol ASCII name and on the right
+side the corresponding value of st_info field of symbol table structure.
+If the symbol name is longer than the maximum displayable length, it is
+clipped accordingly. To make the user aware of that, the last character
+printed is not '>' but ']' in such case:<p>
+<TT>
+&lt;aVeryLongSymbolNameToBeClippe]  (STB_GLOBAL|STT_FUNC)          0        0
+</TT><p>
+Internally the right symbol name is searched in full length (in the above
+case aVeryLongSymbolNameToBeClipped), but only a portion displayed. The 
+dynalinker does /not/ have a limited size for symbol length.
+
+<h3>4.3. Relocs command</h3>
+
+If you want to inquire which symbolic variable needs to be relocated inside
+an ELF file, you can use the relocs command. It will display for all currently 
+loaded files the relocation table (if any).<p>
+<TT>
+dynlink:~/alliance/research/dynalinker/samplecode>relocs<br>
+<br>
+File /home/stefano/alliance/research/dynalinker/samplecode/simplecaller.o:<br>
+Symbol to relocate&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;r_info&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;r_offset<br>
+------------------&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;------&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;--------<br>
+&lt;calledFunction>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;R_386_PC32&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;7d<br>
+<br>
+Non-null symbols:                 1<br>
+Total symbols in relocation table:1<br>
+</TT>
+<p>
+All the variables that needs relocation will be displayed, toghether with
+the actual byte offset to the symbol in the section.
+It is also possible to avoid to compute relocations while loading the
+object files. This may be useful because when you run the dynsh program
+in a different HW architecture than the one the object file were built, 
+some problems (mostly crashes of the shell) can arise. There are two 
+commands: noreloc and doreloc. The noreloc command disable all actions
+related to the management of relocation in binary files, while doreloc
+enables it. By default relocation is enabled. In any case, relocs command
+work whatever the state of the shell is used (e.g., norelo/doreloc does
+not matter).<p>
+
+<h3>4.4 Power uses</h3>
+
+The dynamic linker is rather flexible. You can interactevely mix dump
+information and run-time linking, for instance:<p>
+<TT>
+dynlink:~/alliance/research/dynalinker/samplecode>simplecaller.o<br>
+dynlink:~/alliance/research/dynalinker/samplecode>simplecalled.o<br>
+</TT><p>
+You can put files in different command lines<p>
+<TT>
+dynlink:~/alliance/research/dynalinker/samplecode>entrypoint=main<br>
+dynlink:~/alliance/research/dynalinker/samplecode>link<br>
+</TT><p>
+You are free to set dynalinked program entry point *before* actual link
+and you are always free to dynamically view the dump information via
+relocs, symbols and trace commands.
+
+<h2>5. Help</h2>
+
+There is a small command reference available if you type help at
+the prompt:<p>
+
+<TT>
+dynlink:~/alliance/research/dynalinker/shell>help<br>
+Available commands:<br>
+<br>
+cd &lt;directory>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;change current working directory<br>
+doreloc&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;enable relocation of object files (default=TRUE)<br>
+entrypoint=&lt;symbolname> assign linked program entrypoint<br>
+link&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;resolve global symbols in loaded object files<br>
+memory&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;display dynamic memory usage<br>
+noreloc&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;inhibits relocation on loaded object files<br>
+purge&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;unload from memory previously loaded ELF files<br>
+relocs&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;display relocation informations<br>
+run&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;kickstart dynalinked program<br>
+symbols&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;display symbol table entries<br>
+trace=&lt;tracetype>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;assign trace level.<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Available levels:<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;all&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;display anything<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;headers&nbsp;&nbsp;display all ELF headers<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;none&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;disable traces<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;relocs&nbsp;&nbsp;&nbsp;display relocation informations<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;sections display section headers only<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;symtab&nbsp;&nbsp;&nbsp;display symbol table info<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;vers shell version information<br>
+<br>
+All other things taken as command line input are first checked as<br>
+object/executable files to be loaded, and if no ELF files of that name<br>
+are found, are prcessed as standard UNIX commands.<br>
+</TT>
+

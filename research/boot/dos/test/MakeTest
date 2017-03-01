@@ -1,0 +1,28 @@
+# Makefile for Alliance Bootloader Demonstration Kernel
+#
+# HISTORY
+# Date     Author    Rev    Notes
+# 15/11/98 ramon     1.0    First release
+# 04/05/04 scosta    1.1    Modularized with config install
+
+RM=rm -f
+CC=gcc
+LD=/usr/i486-suse-linux/bin/ld
+
+# The object files belonging to the kernel
+OBJS = ../objects/kernel.o
+
+# The kernel filename
+FINAL = ../binaries/test.elf
+
+# Link the kernel statically with fixed text+data address @1M
+$(FINAL) : $(OBJS)
+	$(LD)  -o $(FINAL) $(OBJS)  -Ttext 0x100000
+
+# Compile the source files
+../objects/%.o: %.c
+	$(CC)  -O -I. -c -o $@ $<
+
+# Clean up the junk
+clean:
+	$(RM) $(OBJS) $(FINAL)

@@ -1,0 +1,56 @@
+######################################################################
+# abl.conf:  ABL netboot configuration file
+#
+# (C) 1999 Ramon van Handel, The Alliance Operating System Team
+#
+# HISTORY
+# Date      Author      Rev    Notes
+# 20/07/99  ramon       1.0    First release
+#
+
+######################################################################
+# This file contains the filenames of the ELF files the ABL has to
+# load into memory on system startup.  The filenames (including
+# paths) are separated by whitespace (space(s), tab(s) or newline(s).)
+#
+# There are four directives that are recognised by the ABL:
+#
+#     - ck:      This is the location of the CK.  Must be the first
+#                non-root directive, and may appear only once in the
+#                file !!!
+#     - kernel:  This is the location of an EK.
+#     - link:    This is the location of an ELF dynamic link library
+#                (also LMs).  It will be linked by the ABL to the
+#                previous kernel.
+#     - root:    This specifies the root partition to offse filenames
+#                from, in GRUB format.  May be overridden by explicit
+#                GRUB-style location names.
+#
+# Starting with '#', the rest of the line is ignored (comment).
+#
+# Here goes...
+
+# The root partition to boot from
+root	= (nd)
+
+# The Cache Kernel ELF file
+ck	= /alliance/development/CK/binaries/CK
+
+# The DemoKernel/DemoTasks for the CK
+kernel	= /alliance/development/CK/binaries/DEMO
+
+
+# ... SKs/AKs go here ...
+
+# The System Resource & Security Manager
+#kernel	= /alliance/development/SRSM/binaries/SRSM
+
+# The I/O System Kernel
+#kernel	= /alliance/development/IOSK/binaries/IOSK
+#link	= /alliance/development/LM/IOSK/IDE/binaries/IOSKIDE.lm
+
+# The Filesystem System Kernel
+#kernel	= /alliance/development/FSSK/binaries/FSSK
+#link	= /alliance/development/LM/FSSK/ext2/binaries/FSSKext2.lm
+
+# The end

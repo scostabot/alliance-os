@@ -1,0 +1,40 @@
+# Compile the Alliance Kernel Library Tester
+#
+# HISTORY
+# Date     Author    Rev    Notes
+# 06/12/98 scosta    1.0    First draft
+
+CC=@CC@
+CPPFLAGS=@CPPFLAGS@
+CFLAGS=@CFLAGS@
+RM=@RM@
+PLATFORM=@PLATFORM@
+COMMONDEP=@COMMONDEP@
+
+FLAGS= -DPLATFORM=\"$(PLATFORM)\" -o $@ -c
+PPFLAGS= -I ../../include -I include
+
+LIBS = -Lbinaries -L../Monitor/binaries -L../String/binaries \
+       -L../TestStubs/binaries -L../Memory/binaries \
+       -lexec -lmonitor -lstring -lmemory -lteststubs
+OFLAGS= -o
+
+SRCS= LoaderTester.c
+
+objects/%.o: $(SRCS) $(COMMONDEP) ../../include/teststubs.h
+	$(CC) $(CPPFLAGS) $(PPFLAGS) $(CFLAGS) $(FLAGS) $<
+
+OBJS= ./objects/LoaderTester.o
+
+FINAL= ./binaries/TestLoader
+
+$(FINAL): $(OBJS) ./binaries/libexec.a ../Monitor/binaries/libmonitor.a\
+          ../Memory/binaries/libmemory.a ../String/binaries/libstring.a
+	$(CC) $(OBJS) $(LIBS) $(OFLAGS) $@
+
+test:
+	$(FINAL)
+
+clean:
+	$(RM) $(OBJS) $(FINAL)
+

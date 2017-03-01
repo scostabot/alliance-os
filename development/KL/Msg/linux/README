@@ -1,0 +1,46 @@
+The files in this directory emulate parts of the message buffering
+management library on top of linux.  The emulation is restricted
+and several things are not implemented (they are listed below), but
+this should be enough to test SORB code on top of linux.
+
+Not implemented:
+- Timeout functions in the messaging library
+- Signal priorities
+
+Restrictions:
+- Only two threads can communicate: no group communications
+- Only one communication channel can be open at a time
+- Only one pair of threads can use the library at any time on one system
+- The library can't be used to communicate between threads in the same addrspc
+- Due to the fact that shmem emulation is simplistic, the client needs to
+  notify the messaging library itself which thread it's communicating with
+  (see the demo.)
+
+How it works:
+The emulation is split into two parts:  alliance valued signal emulation
+(signal.c) and message buffering management on shared memory emulation
+(msg.c).
+
+Signal emulation uses one UNIX signal, SIGUSR1, to alert threads that a
+signal has arrived.  The first thing the UNIX signal handler for this
+signal that is installed by the library does after reception of a signal
+is listen for incoming IPC messages.  Right after the signal, and IPC
+message should come in with information on the Alliance signal, the
+signal number, the signal value, and the sender PID.  It forwards these
+values to the `alliance signal handler'.
+
+The message buffering library is derived from the 'real' msg.c.  We use
+the signal library to send signals according to the spec.  Furthermore,
+we use a UNIX shared memory area for shared memory.
+
+The code is pretty straightforward, so I suggest you read it if you want
+to know more.  Most of the limitations arise from the fact that UNIX IPC
+is absolutely *STUPID*.  Blah.  Oh well...  I also don't really feel like
+making this more complicated than we need in order to develop the SORB on
+linux.
+
+Right now I haven't even compiled it yet but it should work by the time
+I seriously start hacking at the SORB (when the new Flick comes at the
+end of may, I hope.)
+
+-- Ramon, May 8 1999

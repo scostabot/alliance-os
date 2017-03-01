@@ -1,0 +1,8 @@
+- Manage Inheritance.
+- Generate Stubs
+- Generate Skeletons
+
+In header file generation:
+	- Protect declarations with #ifndef X #define X ... #endif
+	- Map type declaration (with operations)
+	- Map constants

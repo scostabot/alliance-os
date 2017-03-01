@@ -1,0 +1,28 @@
+This directory contains the code that is shared between the different
+parts of the Alliance booting system (GRUB, ABL).  This consists mostly of
+filesystem and disk code.  Most of this has been extracted from the
+original GRUB distribution.
+
+BEWARE:  This code uses arbitrary memory allocation in the lower memory
+area, because memory allocation isn't up yet.  Do not use the lower memory
+for data storage until this code will not be used anymore !
+
+Symbols required in parent:
+  - int print(const char *format, ...);
+
+Symbols exported for usage:
+  - int filepos;    This is the file position where read() starts reading
+  - int filemax;    This is the maximal file position (file size)
+
+  These calls can be used to read directly from the disk:
+  - int rawread(int drive, int sector, int byte_offset, int byte_len, int addr);
+  - int devread(int sector, int byte_offset, int byte_len, int addr);
+
+  These calls can be used to open and read files:
+  - int open(char *filename);
+  - int read(int addr, int len);  If length==-1, read until end of file
+  - int dir(char *dirname);       List directory, printing all completions
+
+XXX - Need to thuroughly document all imported and exported symbols
+
+-- Ramon

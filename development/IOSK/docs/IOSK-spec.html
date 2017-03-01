@@ -1,0 +1,463 @@
+<HTML>
+<HEAD>
+   <META HTTP-EQUIV="Content-Type" CONTENT="text/html; charset=iso-8859-1">
+   <TITLE>IOSK Specification Document Release 1.6</TITLE>
+</HEAD>
+<BODY>
+
+<CENTER>
+<H1>IOSK Specification Document Release 1.6</H1>
+<i>Daniel Arbuckle &lt;<A HREF="mailto://djarb@wvc-omak.ctc.edu">djarb@wvc-omak.ctc.edu</A>><BR>
+Stefano Costa &lt;<A HREF="mailto://stefanocosta@netscape.net">stefanocosta@netscape.net</A>><BR>
+</i></CENTER>
+
+<hr WIDTH="100%">
+<h2> Index</h2>
+
+<ol>
+<li> <a href="#Abstract">Abstract</a></li>
+
+<li> <a href="#Intro">Introduction</a></li>
+
+<li> <a href="#Interface">Interface to AKs</a></li>
+
+<li> <a href="#Internals">Internals</a></li>
+<ol>
+<li> <a href="#Session">Session functions</a></li>
+<li> <a href="#Driver">Driver functions</a></li>
+<li> <a href="#Buffer">Buffer functions</a></li>
+<li> <a href="#Device">Device functions</a></li>
+</ol>
+
+<li> <a href="#InterfaceLM">Interface to LMs</a></li>
+<li> <a href="#History">Document History</a></li>
+</ol>
+
+<div align=right><i><a href="#Top">[Top]</a></i></div>
+
+<hr WIDTH="100%">
+<H2><a name="Abstract">1. Abstract</H2>
+&nbsp;&nbsp;&nbsp;&nbsp;This document describes the structure and internal
+functions of Input Output System Kernel inside Alliance OS, the interface to
+AKs, the interface used to interact with <a href="../../LM/docs/LM-specs.html">IOSK LMs</a>.
+<div align=right><i><a href="#Top">[Top]</a></i></div>
+
+<hr WIDTH="100%">
+<H2><a name="Introduction">2. Introduction</H2>
+&nbsp;&nbsp;&nbsp;&nbsp; The I/O System Kernel is the section of the Alliance
+Operating System which is responsible for normal input and output devices.
+Normal devices are broken into two types: character and block. Character
+devices can be thought of as data streams, where it is only possible to
+access the next datum in the line (a stack). Block devices allow access
+to data stored at any location on the device (an array). A mouse is a character
+device, as is a modem; a hard disk is a block device. The IOSK provides
+a single standardized interface for all I/O devices, allowing much of the
+effort of interfacing with the hardware to be centralized in such a way
+that there is no need for programmers to duplicate it. Also, a standard
+interface to all devices makes devices of the same class--and to some extent,
+even those that aren't--interchangable, so that any block device can be
+used in place of any other, and any character device can be used in place
+of any other. Note that interchanges such as using a modem for a mouse
+would probably be counterproductive, although possible. In addition, when
+not performing a seek operation, block devices have the same traits as
+character devices. This allows for even more abstraction, and allows various
+interesting and possibly useful substitutions.
+<BR>&nbsp;&nbsp;&nbsp; This kernel is capable of locking ranges on block
+devices. This means that access to that range of addresses is limited.
+<div align=right><i><a href="#Top">[Top]</a></i></div>
+
+<hr WIDTH="100%">
+<H2><a name="Interface">3. Interface to AKs</H2>
+These calls are exported through a CORBA interface, via the System ORB.&nbsp;
+These calls are defined in IDL, the Interface Definition Language defined
+by the Object Management Group. Interaction between the the IOSK and higher
+level parts takes place through CORBA, via the System ORB. The following
+is an excerpt from the complete <A HREF="iosk.idl">IOSK interface</A>
+
+<P><TT>&nbsp;&nbsp;&nbsp; Session openSession(in string device, in LockLevel
+permission)</TT>
+<BR><TT>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; raises (BadDevice);</TT>
+<BR><TT>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+//Opens a session on a single device, with</TT>
+<BR><TT>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+//the specified permission on its entire</TT>
+<BR><TT>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+//address space.</TT>
+<BR><TT>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+//openMultiSession is not needed. Instead</TT>
+<BR><TT>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+//we'll use multiplexing drivers.</TT>
+
+<P><TT>&nbsp;&nbsp;&nbsp; void closeSession(in Session id)</TT>
+<BR><TT>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; raises (BadHandle);</TT>
+<BR><TT>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+//Closes the specified session, freeing any</TT>
+<BR><TT>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+//locks which it owns and possibly unloading</TT>
+<BR><TT>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+//the LMs which were needed to service it.</TT>
+
+<P><TT>&nbsp;&nbsp;&nbsp; void openHandle(in Session id)</TT>
+<BR><TT>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; raises (BadHandle);</TT>
+<BR><TT>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+//Adds a reference to the given session, and</TT>
+<BR><TT>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+//includes the caller in the list of those</TT>
+<BR><TT>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+//able to access the function, if the permissions</TT>
+<BR><TT>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+//on the session allow.</TT>
+
+<P><TT>&nbsp;&nbsp;&nbsp; void closeHandle(in Session id)</TT>
+<BR><TT>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; raises (BadHandle);</TT>
+<BR><TT>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+//Decrements the reference count on the session,</TT>
+<BR><TT>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+//and removes the caller from its access list.</TT>
+
+<P><TT>&nbsp;&nbsp;&nbsp; void changeOwner(in Session id, in Caller newOwner)</TT>
+<BR><TT>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; raises (BadHandle);</TT>
+<BR><TT>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+//Changes the owner of the specified session.</TT>
+
+<P><TT>&nbsp;&nbsp;&nbsp; char readChar(in Session id, in boolean block)</TT>
+<BR><TT>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; raises (BadHandle, BadRead);</TT>
+<BR><TT>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+//This is a single character input method,</TT>
+<BR><TT>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+//which either waits for a char to be</TT>
+<BR><TT>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+//available or returns immediately, depending</TT>
+<BR><TT>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+//on the 'block' parameter</TT>
+
+<P><TT>&nbsp;&nbsp;&nbsp; bytes read(in Session id, inout unsigned long
+length, in boolean block)</TT>
+<BR><TT>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; raises (BadHandle, BadRead);</TT>
+<BR><TT>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+//Reads up to 'length' bytes from the given</TT>
+<BR><TT>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+//session. If block is true, waits in the</TT>
+<BR><TT>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+//method until 'length' bytes have been read</TT>
+<BR><TT>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+//or the end of the session's data is reached.</TT>
+<BR><TT>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+//If block is false, immediately returns as</TT>
+<BR><TT>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+//much data, up to 'length', as is available.</TT>
+
+<P><TT>&nbsp;&nbsp;&nbsp; void write(in Session id, in bytes buffer)</TT>
+<BR><TT>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; raises (BadHandle, BadWrite);</TT>
+<BR><TT>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+//Writes 'buffer' into the session.</TT>
+
+<P><TT>&nbsp;&nbsp;&nbsp; oneway void writeAsync(in Session id, in bytes
+buffer);</TT>
+<BR><TT>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+//Returns immediately, the write happens</TT>
+<BR><TT>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+//while the next instructions are being</TT>
+<BR><TT>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+//executed</TT>
+
+<P><TT>&nbsp;&nbsp;&nbsp; void readSeek(in Session id, in Address where,
+in SeekDir dir)</TT>
+<BR><TT>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; raises (BadHandle, BadAddress);</TT>
+<BR><TT>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+//Changes the position of the read pointer.</TT>
+<BR><TT>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+//If called on a char device, with</TT>
+<BR><TT>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+// dir == Forward, it skips</TT>
+<BR><TT>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+//over the next 'where' bytes. Any other</TT>
+<BR><TT>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+//dir on a char device will raise a BadHandle.</TT>
+
+<P><TT>&nbsp;&nbsp;&nbsp; void writeSeek(in Session id, in Address where,
+in SeekDir dir)</TT>
+<BR><TT>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; raises (BadHandle, BadAddress);</TT>
+<BR><TT>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+//Changes the position of the write pointer.</TT>
+<BR><TT>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+//If called on a char device, raises a</TT>
+<BR><TT>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+//BadHandle.</TT>
+
+<P><TT>&nbsp;&nbsp;&nbsp; void lock(in Session id, in Address where, in
+Address length,</TT>
+<BR><TT>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+in LockLevel level)</TT>
+<BR><TT>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; raises (BadHandle, BadAddress);</TT>
+<BR><TT>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+//Changes the locking policy of the session</TT>
+<BR><TT>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+//for the given range of its addresses.</TT>
+<BR>&nbsp;
+<div align=right><i><a href="#Top">[Top]</a></i></div>
+
+<hr WIDTH="100%">
+<H2><a name="Internals">4. Internals</H2>
+&nbsp;&nbsp;&nbsp; Internally, the IOSK maintains four types of interacting
+data structures. These types represent sessions, drivers, buffers, and
+devices.
+<UL>
+<LI>
+&nbsp;Sessions represent the view of the I/O system that is presented to
+the user. They contain the Buffers upon which read and write operations
+are performed for a given session, the Driver structure which is used to
+interact with the device, and a Device structure which controls which device
+is interacted with and how the interaction occurs. It also contains the
+list of allowed callers. The first entry in the list is the owner.</LI>
+
+<LI>
+Driver structures are merely a set of pointers to the standard driver functions,
+as well as a string specifying the name of the driver, a loadable module
+handle which can be used to access the LM in which the driver resides,
+and a reference count for the driver.</LI>
+
+<LI>
+Buffers are simply FIFOs with flow control. It has not yet been decided
+if they should be circular xor growable.</LI>
+
+<LI>
+Devices contain the global name of the device they represent, the position
+of the Device structure on the physical device, and the current read and
+write points.</LI>
+</UL>
+The IOSK has four global data structures containing the Devices, Drivers,
+Buffers, and Sessions. Each data structure has an associated Mutex which
+is set whenever an operation that would change the data structure is going
+to happen. All read operations into the data structures must wait on these
+mutexes.
+
+<P>The IOSK has a multithreaded model, which is intended to allow greater
+efficiency on IO operations. There is one thread for each level in the
+data path. i.e. there is a thread at the top level which processes incoming
+calls, plus each upstream buffer has a thread to fill it and each downstream
+buffer has a thread to empty it. In some cases a single thread will perform
+more than one of these tasks.
+<H3><a name="Session">4.1. Session functions</H3>
+&nbsp;&nbsp;&nbsp; ioskOpenSession
+<BR>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Parameters: device initializer
+string, lock level, caller unique identifier
+<BR>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Returns: Session handle,
+or if most significant 16 bits == 0xFFFF, an error code
+
+<P>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Sets up a session, including
+initializing all devices, drivers, and buffers that the session depends
+upon.
+
+<P>&nbsp;&nbsp;&nbsp; ioskOpenHandle
+<BR>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Parameters: Session handle,
+caller unique identifier
+<BR>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Returns: TRUE, or an error
+code
+
+<P>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Adds the specified caller
+to the list of those allowed to access that session.
+
+<P>&nbsp;&nbsp;&nbsp; ioskCloseSession
+<BR>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Parameters:&nbsp; Session
+handle, caller unique identifier
+<BR>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Returns: TRUE, or an error
+code
+
+<P>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Removes the specified caller
+from the list of those allowed to access the session. If the caller is
+the owner, the session is closed.
+
+<P>&nbsp;&nbsp;&nbsp; ioskLockSession
+<BR>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Parameters: Session handle,
+lock level, caller unique identifier
+<BR>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Returns: TRUE, or an error
+code
+
+<P>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Changes the lock level of
+the session, if the specified caller is the owner.
+
+<P>&nbsp;&nbsp;&nbsp; ioskOwnSession
+<BR>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Parameters: caller unique
+identifier, caller unique identifier
+<BR>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Returns: TRUE, or an error
+code
+
+<P>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Changes the owner of the
+session to the first specified caller, if the second specified caller is
+the current owner.
+<H3><a name="Driver">4.2. Driver functions</H3>
+&nbsp;&nbsp;&nbsp; ioskOpenDriver
+<BR>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Parameters: driver name
+<BR>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Returns: Handle of the Driver
+structure, or highest possile handle for error
+
+<P>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Checks through already loaded
+drivers for the requested driver. If it is not already loaded, an attempt
+to read it from the filesystem will be made. If that too fails, an error
+is returned.
+
+<P>&nbsp;&nbsp;&nbsp; ioskCloseDriver
+<BR>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Parameters: driver handle
+<BR>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Returns: TRUE, or an error
+code
+
+<P>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Reduces the reference
+count for the driver, and unloads it if the count is zero
+
+<P>&nbsp;&nbsp;&nbsp; ioskUnloadDriver
+<BR>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Parameters: driver handle
+<BR>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Returns: TRUE, or an error
+code
+
+<P>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Unloads the driver regardless
+of the reference count.
+
+<P>&nbsp;&nbsp;&nbsp; ioskSuckParams
+<BR>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Parameters: device init
+string
+<BR>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Returns: pointer to a substring
+containing the device's parameters
+
+<P>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Turns this: ide(0, 15)\0
+<BR>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; into this:&nbsp; ide\00,
+15\0&nbsp; and returns a pointer to the second string.
+<BR>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; This function can handle
+nested initialization strings correctly:
+<BR>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; multi(ide(0, 15), scsi(12))
+==> multi\0ide(0, 15), scsi(12)\0
+<H3><a name="Buffer">4.3. Buffer functions</H3>
+&nbsp;&nbsp;&nbsp; ioskReadBuffer
+<BR>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Parameters:&nbsp; Pointer
+to source Buffer, Pointer to destination buffer, pointer to number of bytes
+to read, whether to block until full length read
+<BR>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Returns: TRUE, or error
+code
+
+<P>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Reads up to the specified
+number of bytes, then returns them in the passed buffer. The actual number
+of bytes read is stored into the length variable.
+
+<P>&nbsp;&nbsp;&nbsp; ioskWriteBuffer
+<BR>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Parameters: Pointer to destination
+Buffer, pointer to source buffer, pointer to length of number of bytes
+to write
+<BR>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Returns: TRUE, or error
+code
+
+<P>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Writes the specified number
+of bytes from the source buffer into the destination buffer. The actual
+number of bytes written is stored into the length variable.
+<BR>&nbsp;
+<H3><a name="Device">4.4. Device functions</H3>
+&nbsp;&nbsp;&nbsp; These functions manipulate the internal Device data
+structures.
+
+<P>&nbsp;&nbsp;&nbsp;&nbsp; ioskInitDevice
+<BR>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Parameters: the name of
+the device to initialize
+<BR>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Returns: the handle of the
+device structure., or the highest possible handle if another Device cannot
+be initialized.
+
+<P>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Checks to see if a Device
+with that name has already been initialized. If not, initializes one. In
+either case, returns the handle of the device.
+
+<P>&nbsp;&nbsp;&nbsp; ioskDestroyDevice
+<BR>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Parameters: handle of the
+device to remove.
+<BR>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Returns: TRUE, or error
+code
+
+<P>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Removes a Device structure
+from the system.
+
+<P>&nbsp;&nbsp;&nbsp; ioskLockDevice
+<BR>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Parameters: the device handle,
+The beginning logical address, the ending logical address, the lock level
+<BR>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Returns: TRUE, or error
+code
+
+<P>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Checks to see that the proposed
+lock does not conflict with any existing ones. If not, sets the lock. Otherwise,
+returns an error.
+<BR>&nbsp;
+<div align=right><i><a href="#Top">[Top]</a></i></div>
+
+<hr WIDTH="100%">
+<H2><a name="History">5. Interface to LMs</H2>
+
+&nbsp;&nbsp;&nbsp;IOSK use the <a href="../../KL/Exec/docs/ExecLib.html">Executable Loader library</a> in order to load/unload
+LMs from memory. IOSK load the needed LM, fetch some symbol addresses for
+standard entry points (described in the <a href="../../LM/docs/LM-specs.html">IOSK LM specification document</a>) and then
+call them as needed. IOSK mantain a table of the loaded LMs, and their
+relationships, since it is possible to <i>connect</i> two or more LM in a chain,
+with one-one, many-to-one fashion. This characteristic is very handy and powerful since maximize code reuse and device driver flexibility, and allows many I/O function enhacements.
+<p>For instance, consider a generic cache LM. You can put in a LM chain the
+cache LM and cache-enable any LM, even if the LM implementor haven't considered
+it. A floppy disk can be cached, as an hard disk. Conversely, you may cache only
+the drives you want to, and not any drive.
+<p>In general IOSK mantains all the LM chains structure, allows on-the-fly chain
+shape updating and takes care of calling in the proper sequence the LMS
+involved.
+
+<h3>5.1. Passing data between LMs</h3>
+
+&nbsp;&nbsp;&nbsp;IOSK does not need to copy data back and forth to LMs, but
+limit only to give to LMs pointers to actual data to be written to. Conversely  
+
+<div align=right><i><a href="#Top">[Top]</a></i></div>
+
+<hr WIDTH="100%">
+<H2><a name="History">6. Document History</H2>
+
+<table WIDTH="100%" >
+<tr VALIGN=TOP>
+<td><b><i>Release 1</i></b></td>
+
+<td>by Daniel Arbuckle &lt;<a href="mailto:djarb@wvc-omak.ctc.edu">djarb@wvc-omak.ctc.edu</a>&gt;
+<br>04-Mar-1998
+<br>Initial release</td>
+</tr>
+<tr VALIGN=TOP><td><b><i>Release 2</i></b></td>
+
+<td>by Daniel Arbuckle &lt;<a href="mailto:djarb@wvc-omak.ctc.edu">djarb@wvc-omak.ctc.edu</a>&gt;
+<br>12-Mar-1998
+<br>Minor modifications, clarifications, added nonstandard extension API</td>
+</tr>
+<tr VALIGN=TOP><td><b><i>Release 3</i></b></td>
+
+<td>by Daniel Arbuckle &lt;<a href="mailto:djarb@wvc-omak.ctc.edu">djarb@wvc-omak.ctc.edu</a>&gt;
+<br>14-Mar-1998
+<br>Minor modification, added callback notification to non-blocking calls</td>
+</tr>
+<tr VALIGN=TOP><td><b><i>Release 4</i></b></td>
+
+<td>by Daniel Arbuckle &lt;<a href="mailto:djarb@wvc-omak.ctc.edu">djarb@wvc-omak.ctc.edu</a>&gt;
+<br>16-May-1998
+<br>Changed the name for conformity with the new Alliance naming standards, minor reformat, no substantial changes</td>
+</tr>
+<tr VALIGN=TOP><td><b><i>Release 5</i></b></td>
+
+<td>by Daniel Arbuckle &lt;<a href="mailto:djarb@wvc-omak.ctc.edu">djarb@wvc-omak.ctc.edu</a>&gt;
+<br>12-Aug-1998
+<br>Got rid of the extension API and non-blocking calls; the System ORB does that now. Switched to IDL for interface definition. Redid the locking scheme. Reformatted to avoid the FONT tag. Should be ready for public release 1. </td>
+</tr>
+<tr VALIGN=TOP><td><b><i>Release 6</i></b></td>
+
+<td>by Daniel Arbuckle &lt;<a href="mailto:djarb@wvc-omak.ctc.edu">djarb@wvc-omak.ctc.edu</a>&gt;
+<br>05-Sep-1998
+<br>Defined more of the internals of the system. Much more ready now than it was before.</td>
+</tr>
+<tr VALIGN=TOP><td><b><i>Release 1.6</i></b></td>
+
+<td>by Stefano Costa &lt;<a href="stefanocosta@netscape.net">stefanocosta@netscape.net</a>&gt;
+<br>20-Feb-2001
+<br>Document layout now follows Alliance Document Guideline, uniform release
+scheme.</td>
+</tr>
+</table>
+
+</BODY>
+</HTML>

@@ -1,0 +1,13 @@
+This is a list of tasks of the main faults that can be seen at each given time
+and that have to be solved for the SORB.
+
+Release 2
+	Write some code to emulate the page swapping IPC mechanism while the
+code is not ported to a real Alliance System.
+	Use this IPC code to implement the threaded servers.
+
+Release 1
+	Write some code to emulate the page swapping IPC mechanism while the
+code is not ported to a real Alliance System.
+	Use this IPC code to implement the threaded servers.
+	Modify the source tree and the code according the the Coding Guidelines

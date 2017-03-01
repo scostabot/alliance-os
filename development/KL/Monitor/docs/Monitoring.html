@@ -1,0 +1,175 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.0 Transitional//EN">
+<HTML>
+<HEAD>
+   <META HTTP-EQUIV="Content-Type" CONTENT="text/html; charset=iso-8859-1">
+   <META NAME="GENERATOR" CONTENT="Mozilla/4.08 [en] (X11; I; SunOS 5.5.1 sun4u) [Netscape]">
+</HEAD>
+<BODY>
+
+<CENTER>
+<H2>
+Monitoring Facilities Release 1</H2></CENTER>
+
+<CENTER>
+<H3>
+Stefano Costa &lt;<A HREF="mailto://stefanocosta@netscape.net">stefanocosta@netscape.net</A>></H3></CENTER>
+
+<H3>
+Index</H3>
+1. <A HREF="#Abstract">Abstract</A>
+<BR>2. <A HREF="#Introduction">Introduction</A>
+<BR>3. <A HREF="#Tracing">Tracing</A>
+<BLOCKQUOTE>3.1. <A HREF="#Tracing level">Tracing level</A>
+<BR>3.2. <A HREF="#Tracing inclusion/exclusion">Tracing inclusion/exclusion</A></BLOCKQUOTE>
+4. <A HREF="#History">History</A>
+<H3>
+<A NAME="Abstract"></A>Abstract</H3>
+In any serious programming work, it is vital to keep track of the run-time
+state of software modules in order to keep track of bugs in the fastest
+way possible. This paper describes the facilities offered by Alliance OS
+in this regard.
+<H3>
+<A NAME="Introduction"></A>Introduction</H3>
+Programming is hard. Debugging is worst: many times you haven't access
+to the faulted machine or program because they are located in another continent.
+Or when you see a problem locally, you don't have the idea of what's going
+on. Debuggers are a precious tool, but not always helpful. If you don't
+know what are you looking for, debuggers are only marginally useful. In
+addition debuggers are invasive, and really nasty bugs disappears when
+you single-step code.
+<BR>A run-time, uninvasive, efficient methods are needed to smash bugs.
+<H3>
+<A NAME="Tracing"></A>Tracing</H3>
+The first answer is tracing. Tracing is inserting code that display useful
+data when needed. The tracing function in Alliance is KLtrace:
+<P>VOID KLtrace(TRACING-LEVEL TRACE-STRING);
+<P>where TRACE-LEVEL is a string-coded 16-bit hexadecimal number. The bitfields
+are defined as follows:
+<P><TT>bit | 15&nbsp; 14&nbsp; 13&nbsp; 12&nbsp; 11&nbsp; 10&nbsp; 9&nbsp;
+8&nbsp; 7&nbsp; 6&nbsp; 5&nbsp; 4&nbsp; | 3&nbsp; 2&nbsp; 1&nbsp; 0</TT>
+<BR><TT>&nbsp;&nbsp;&nbsp; |&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+|</TT>
+<BR><TT>&nbsp;&nbsp;&nbsp; |&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+|</TT>
+<BR><TT>&nbsp;&nbsp;&nbsp; |&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+| Message category</TT>
+<BR><TT>&nbsp;&nbsp;&nbsp; |</TT>
+<BR><TT>&nbsp;&nbsp;&nbsp; | User-defined</TT>
+<P>The message category field is defined and constant system-wide, regardless
+of the software module. The user part is up to the programmer that use
+the monitoring facilities. These are valid Message Categories:
+<BR>&nbsp;
+<TABLE BORDER COLS=3 WIDTH="100%" NOSAVE >
+<TR>
+<TD>SK_FATAL&nbsp;</TD>
+
+<TD>"0|"</TD>
+
+<TD>The trace refers to an unrecoverable error</TD>
+</TR>
+
+<TR>
+<TD>SK_WARNING&nbsp;</TD>
+
+<TD>"1|"</TD>
+
+<TD>The trace refers to a recoverable error</TD>
+</TR>
+
+<TR>
+<TD>SK_INFO</TD>
+
+<TD>"2|"</TD>
+
+<TD>The trace is informational and unharmful</TD>
+</TR>
+</TABLE>
+
+<P>Each symbol is terminated with '|', so KLtrace can separate TRACE-STRING
+from TRACING-LEVEL easily.
+<BR>You can use inside an KLtrace only one of this definition at a time.
+This is logical, since a trace message cannot be fatal or unharmful simultaneously.
+<BR>The TRACE-STRING parameter is a standard string, formatted as C library
+printf() function, that is output as a trace. After TRACE-STRING, depending
+on format arguments, a variable number of additional parameter can follow.
+The rules are identical to C printf().
+<H3>
+<A NAME="Tracing level"></A>Tracing level</H3>
+Traces are not blindly output, but firstly the current tracing level is
+bitwise checked with the trace level in the KLtrace() function call. If
+there is a match, the trace is output, otherwise no action is taken. The
+current tracing level is set using KLtraceSet() function:
+<P>VOID KLtraceSet(TRACING-LEVEL);
+<P>where TRACING-LEVEL is defined identically to those of KLtrace(). For
+instance this is a sample listing:
+<P><TT>/* example.c */</TT>
+<P><TT>#include &lt;systemdefs.h>&nbsp; /* Includes monitoring facilities
+and all stuff */</TT>
+<P><TT>#define HW_REGISTERS_ACCESS&nbsp; "1"</TT>
+<BR><TT>#define CMOS_ACCESS&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+"2"</TT>
+<P><TT>UWORD16 tracingLevel;</TT>
+<P><TT>&nbsp;&nbsp; KLtraceSet(CMOS_ACCESS);</TT>
+<P><TT>&nbsp;&nbsp; cmosbyte=inpb(0x70);</TT>
+<BR><TT>&nbsp;&nbsp; KLtrace(CMOS_ACCESS SK_INFO "Floppy type=%X\n", cmosbyte);</TT>
+<P><TT>&nbsp;&nbsp;&nbsp; ....</TT>
+<P><TT>&nbsp;&nbsp; KLtrace(HW_REGISTER_ACCESS SK_INFO, "Something weird
+happened\n");</TT>
+<P>The first KLtraceSet instruct the Monitoring Facilities Library that
+only traces relative to CMOS_ACCESS are to be dispayed, while all the others
+must be not output. We can also narrow the scope, adding more items in
+the mask, for instance calling KLtraceSet int this way:
+<P><TT>&nbsp;&nbsp; KLtraceSet(CMOS_ACCESS SK_FATAL);</TT>
+<P>instruct the Monitoring Facilities Library to display only such messages
+that in addtion to be relative to CMOS_ACCESS are also of category SK_FATAL.
+<H3>
+<A NAME="Tracing inclusion/exclusion"></A>Tracing inclusion/exclusion</H3>
+After the software is sufficiently stable, the optimization process can
+begin. One undesiderable side-effect of the KLtrace function is that internal
+processing eats up CPU time, without actually make nothing useful. All
+tracing function are actually compiled in the code only if the symbol SKTRACE
+is #defined. If not, no code is generated. There is a trick, anyway: KLtrace
+must be written in a single line, because the C preprocessor has some limitations.
+Currently the KLtrace is defined in this way:
+<P><TT>#define KLtrace \</TT>
+<BR><TT>{\</TT>
+<BR><TT>&nbsp;&nbsp;&nbsp; DATA rc;\</TT>
+<BR><TT>&nbsp;&nbsp;&nbsp; STRING traceMsg[80];\</TT>
+<BR><TT>&nbsp;&nbsp;&nbsp; rc=KLstringFormat(traceMsg, __FILE__ ":%d|",
+__LINE__); \</TT>
+<BR><TT>&nbsp;&nbsp;&nbsp; KLlowLevelTrace(traceMsg);\</TT>
+<BR><TT>}\</TT>
+<BR><TT>&nbsp;&nbsp;&nbsp; KLhighLevelTrace</TT><TT></TT>
+<P>The function <TT>KLhighLevelTrace </TT>is the real tracing function
+with variable input parameters. Since the definition reuse what follows
+KLtrace as input to KLhighLevelTrace. When SKTRACE is undefined, this is
+the new macro used:
+<P><TT>#define KLtrace //</TT><TT></TT>
+<P>Since we cannot know where the statement ends, the '//' comment keyword
+is used, so the actual KLtrace statement must be contained in one line
+only.
+<H3>
+<A NAME="Limitations"></A>Limitations</H3>
+All monitoring facilities are based on C pre-processor capabilities. To
+make all things work as expected, some compromises must be known. The first
+one is that user have to define as string its own masks. This implies that
+a set of #defines must be written to support all possible bit combinations,
+if they are needed:
+<P><TT>#define BIT4&nbsp;&nbsp;&nbsp; "1"</TT>
+<BR><TT>#define BIT5&nbsp;&nbsp;&nbsp; "2"</TT>
+<BR><TT>#define BIT45&nbsp;&nbsp; "3"</TT>
+<H3>
+<A NAME="History"></A>History</H3>
+&nbsp;
+<TABLE BORDER COLS=3 WIDTH="100%" NOSAVE >
+<TR>
+<TD>Release 1</TD>
+
+<TD>Stefano Costa &lt;<A HREF="mailto://stefanocosta@netscape.net">stefanocosta@netscape.net</A>></TD>
+
+<TD>First draft</TD>
+</TR>
+</TABLE>
+
+</BODY>
+</HTML>

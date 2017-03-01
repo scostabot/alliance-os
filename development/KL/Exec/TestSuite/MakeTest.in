@@ -1,0 +1,64 @@
+# Compile the dynalinker test suite code
+#
+# HISTORY
+# Date     Author    Rev    Notes
+# 06/03/00 scosta    1.0    First draft
+
+CC=@CC@
+PLATFORM=@PLATFORM@
+OBJDUMP=@OBJDUMP@
+RM=@RM@
+
+# In order to perform exhaustive testing, we generate plain ELF files, and
+# ELF files with debugging options enabled
+
+FLAGS= -Wall -o $@ -c
+FLAGSWITHDEBUG= -Wall -g -o $@Debug -c 
+
+objects/architecture/$(PLATFORM)/%: %.c
+	$(CC) $(FLAGS) $<
+	$(CC) $(FLAGSWITHDEBUG) $<
+	$(OBJDUMP) --source $@ > assembly/$(PLATFORM)/$(*F).s
+
+# This is what we need to compile in this module
+
+SRCS= FunctionCaller.c FunctionCalled.c \
+      LocalFunctionCallWithFiller.c LocalFunctionCallPostfix.c \
+      AssignedGlobalData.c \
+      StaticGlobalData.c StaticLocalData.c \
+      ExternGlobalDataReference.c ExternLocalDataReference.c \
+      FunctionPointer.c \
+      PointerTest.c \
+      FunctionLinkage.c
+
+OBJS= objects/architecture/$(PLATFORM)/ExternFunctionCalled \
+      objects/architecture/$(PLATFORM)/LocalFunctionCallWithFiller \
+      objects/architecture/$(PLATFORM)/LocalFunctionCallPostfix \
+      objects/architecture/$(PLATFORM)/AssignedGlobalData \
+      objects/architecture/$(PLATFORM)/StaticGlobalData \
+      objects/architecture/$(PLATFORM)/StaticLocalData \
+      objects/architecture/$(PLATFORM)/ExternGlobalDataReference \
+      objects/architecture/$(PLATFORM)/ExternLocalDataReference \
+      objects/architecture/$(PLATFORM)/FunctionPointer \
+      objects/architecture/$(PLATFORM)/PointerTest \
+      objects/architecture/$(PLATFORM)/FunctionLinkage
+
+OBJSDEBUG= objects/architecture/$(PLATFORM)/ExternFunctionCalledDebug \
+           objects/architecture/$(PLATFORM)/LocalFunctionCallWithFillerDebug \
+           objects/architecture/$(PLATFORM)/LocalFunctionCallPostfixDebug \
+           objects/architecture/$(PLATFORM)/AssignedGlobalDataDebug \
+           objects/architecture/$(PLATFORM)/StaticGlobalDataDebug \
+           objects/architecture/$(PLATFORM)/StaticLocalDataDebug \
+           objects/architecture/$(PLATFORM)/ExternGlobalDataReferenceDebug \
+           objects/architecture/$(PLATFORM)/ExternLocalDataReferenceDebug \
+           objects/architecture/$(PLATFORM)/FunctionPointerDebug \
+           objects/architecture/$(PLATFORM)/PointerTestDebug 
+
+all: $(OBJS)
+
+test: all
+
+clean:
+	$(RM) $(OBJS) $(OBJSDEBUG) *~
+	$(RM) assembly/$(PLATFORM)/*
+

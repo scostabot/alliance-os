@@ -1,0 +1,534 @@
+dnl Alliance OS configure utility script source.
+dnl Process this file with autoconf to produce a configure script.
+dnl
+dnl HISTORY
+dnl Date     Author    Rev    Notes
+dnl 11/10/99 scosta    1.0    First draft
+dnl 11/02/00 scosta    1.1    Probe target platform, better checkings
+dnl 28/06/00 scosta    1.2    Added support for Exec library
+dnl 24/11/00 scosta    1.3    Added support for Exec library test suite
+dnl 22/12/03 scosta    1.4    Better handling of compiler options
+
+dnl ***************** Initialization phase **********************
+dnl Check autoconf tool version:should be at least 2.9.
+
+AC_PREREQ(2.9)
+
+dnl Set revision of file configure.in.
+
+AC_REVISION($Revision: 1.00)dnl
+
+dnl We consider this file as the marker for a proper installation. 
+
+AC_INIT(development/CK/resource.c)
+
+echo "Alliance OS source tree configuration script"
+echo "--------------------------------------------"
+
+dnl ************** Command line options support ******************
+dnl Setup configure command line options.
+
+dnl Should we generate anything with debugging info, or not? Default:with info
+
+AC_ARG_WITH(debuginfo,
+          [  --with-debuginfo        generate code with debugging info],
+          [with_debuginfo=$withval],
+          [with_debuginfo='yes'])
+
+dnl Should we enable debugging traces? Default: with traces
+
+AC_ARG_WITH(tracing,
+          [  --with-tracing          generate code with run-time tracing info],
+          [with_tracinginfo=$withval],
+          [with_tracinginfo='yes'])
+
+dnl Should we test the Kernel Libraries in the target environment? Default: yes
+
+AC_ARG_WITH(testsuite,
+          [  --with-tests            compile test suite for libraries],
+          [with_testsuite=$withval],
+          [with_testsuite='yes'])
+
+dnl Should we use the standard probe to detect make program or force user choice?
+dnl Default: use standard probing
+
+AC_ARG_WITH(make,          
+	  [  --with-make             force the usage of given make program],
+	  [with_make=$withval],
+	  [with_make='no'])
+
+dnl Should we use the standard probe to detect C compiler or force a user choice?
+dnl Default: use standard probing
+
+AC_ARG_WITH(cc,
+          [  --with-cc               force the usage of given C compiler],
+          [with_cc=$withval],
+          [with_cc='no'])
+
+dnl Should we use the standard probe to detect the linker or force a user choice?
+dnl Default: use standard probing
+
+AC_ARG_WITH(ld,
+          [  --with-ld               force the usage of given linker program],
+          [with_ld=$withval],
+          [with_ld='no'])
+
+dnl ***************** Environment checking phase **********************
+dnl Checks for suitable shell commands environment.
+
+dnl When we want to delete something, we want to nuke it.
+
+RM="rm -f"
+AC_SUBST(RM)
+
+dnl We use internally awk, i.e. the Allos binary generation does not require
+dnl it, but the configure script is more manageable with it.
+
+AC_CHECK_PROGS(awkprg, awk, gawk, noawk)
+if test "$awkprg" = 'noawk'
+then
+  echo "*** No awk program is available."
+  echo "*** Please install a GNU awk utility version 3.0 or better."
+  echo "*** Be sure to set PATH variable accordingly before re-run configure."
+  exit
+fi
+
+dnl Checks for a suitable executable generation environment.
+dnl First check if user has forced the usage of a particular C compiler
+
+if test "$with_cc" = 'no'
+  then
+  dnl We accept /only/ gcc or egcs as compilers. We expressevely forbid cc.
+
+  AC_CHECK_PROGS(CC, gcc, gcc, nocompiler)
+  if test "$CC" = 'nocompiler'
+  then
+    echo
+    echo "*** No suitable compiler is configured in your PATH."
+    echo "*** Please install gcc 2.7.2.1 or later."
+    echo "*** Be sure to set PATH variable accordingly before re-run configure."
+    exit
+  else
+    dnl Let's check if the compiler version matches our tastes
+
+    AC_MSG_CHECKING(if build environemnt is sane)
+    cat > ./conftest.c <<EOF
+    main() {
+        if(__GNUC__==2) {
+          if( __GNUC_MINOR__>=7) {
+             exit(0);
+          } else {
+             exit(1);
+          }
+        } else {
+          if(__GNUC__>2) {
+             exit(0);
+          } else {
+             exit(1);
+          }
+        }
+     }
+EOF
+
+    ac_link='$CC -o ./conftest ./conftest.c'
+    eval $ac_link
+    ./conftest
+
+    if test "$?" = 1
+    then
+      echo
+      echo "*** Version of the compiler is not suitable."
+      echo "*** Please install either egcs 1.1.1 or gcc 2.7.2.1 and up."
+      echo "*** Please avoid gcc 2.8.0, because has several known bugs."
+      exit
+    else
+      AC_MSG_RESULT(ok)
+    fi
+
+    dnl Delete temporary files
+
+dnl    $RM ./conftest.c ./conftest
+  fi
+else
+  ccompiler=`echo $with_cc | $awkprg -F/ '{ print $NF }'`
+  CC=$with_cc
+fi
+
+AC_SUBST(CC)
+
+dnl Probe target platform for this compiler and set the PLATFORM variable
+
+cmdline_target='$CC -dumpmachine'
+target=`eval $cmdline_target`
+case $target in
+   	sparc-*-*)		PLATFORM="SPARC" ;;
+	i386-*)			PLATFORM="I80X86" ;;
+	i486-*)			PLATFORM="I80X86" ;;
+	i586-*)			PLATFORM="I80X86" ;;
+	i686-*)			PLATFORM="I80X86" ;;
+    *)				echo "*** The target platform" $target "is not supported.";echo "*** Please generate/configure gcc/egcs for correct platform.";exit ;;
+esac
+
+AC_SUBST(PLATFORM)
+
+dnl We use in some key directories the soft links, we check if ln is available
+
+AC_PROG_LN_S()
+
+if test "$LN_S" = "ln"
+then
+  echo "*** The host filesystem does not support soft links OR"
+  echo "*** the ln command is not in your PATH directory."
+  exit
+fi
+
+dnl Check which kind of make we are using. Check only gmake if user tell so.
+
+if test "$with_make" = 'no'
+then
+  AC_CHECK_PROGS(MAKE, make, gmake, nomake)
+  if test "$makeprg" = 'nomake'
+  then
+    echo "*** No make program is available."
+    echo "*** Please install a GNU make utility version 3.74 or better."
+    echo "*** Be sure to set PATH variable accordingly before re-run configure."
+    exit
+  fi
+else
+  MAKE=$with_make
+fi
+
+dnl Check make program version
+
+make_rel=`$MAKE -v | $awkprg '{ print $4 }'`
+major=`echo $make_rel | $awkprg -F. '{ print $1 }'`
+minor=`echo $make_rel | $awkprg -F. '{ print $2 }'`
+
+if test "$major" -lt 3
+then
+  echo "*** Please update version of" $makeprg "program to (at least) v3.7."
+  exit
+else
+  if test "$major" -eq 3 && test "$minor" -lt 7
+  then
+    echo "*** Please update version of" $makeprg "program to (at least) v3.7."
+    exit
+  fi
+fi
+
+AC_SUBST(MAKE)
+
+dnl Check the presence of archive program
+
+AC_CHECK_PROGS(archive, ar, ar, noarchive)
+if test "$archive" = 'noarchive'
+then
+  echo "*** No suitable archive utility is configured in your PATH."
+  echo "*** Please install GNU binutils with ar version 2.7 and up."
+  echo "*** Be sure to set PATH variable accordingly before re-run configure."
+  exit
+else
+  dnl Check if ar version is 2.7 or better
+
+  ar_rel=`ar -V | $awkprg '{ print $3 }'`
+  major=`echo $ar_rel | $awkprg -F. '{ print $1 }'`
+  minor=`echo $ar_rel | $awkprg -F. '{ print $2 }'`
+
+  if test "$major" -lt 2
+  then
+    echo "*** Please update version of ar program to (at least) v2.7."
+    echo "*** You can find it in binutils package rel 2.7 and up."
+    exit
+  elif test "$major" -eq 2 && test "$minor" -lt 7
+  then
+    echo "*** Please update version of ar program to (at least) v2.7."
+    echo "*** You can find it in binutils package rel 2.7 and up."
+    exit
+  fi
+fi
+  
+AR=$archive
+AC_SUBST(AR)
+ARFLAGS=cruv
+AC_SUBST(ARFLAGS)
+
+dnl We also need an assembler to compile native target CPU opcodes
+
+AC_CHECK_PROG(assembler, as, gas, noassembler)
+if test "$assembler" = 'noassembler'
+then
+  echo "*** No suitable assembler is configured in your PATH."
+  echo "*** Please install GNU Assembler x.y and up."
+  echo "*** Be sure to set PATH variable accordingly before re-run configure."
+  exit
+else
+  dnl Assembler version check. Of course is platform dependant.
+
+  case $PLATFORM in
+    I80X86)	AS="as" ;;
+    SPARC)	AS="as" ;;
+  esac
+fi
+
+AC_SUBST(AS)
+
+dnl We need an object file stripper to generate executable images at boot
+
+AC_CHECK_PROG(objectcopy, objcopy, objcopy, noobjectcopy)
+if test "$objectcopy" = 'noobjectcopy'
+then
+  echo "*** There is no objectcopy program configured in your PATH."
+  echo "*** Please install GNU binutils, with objectcopy 2.7 and up."
+  echo "*** Be sure to set PATH variable accordingly before re-run configure."
+  exit
+else
+  dnl Check version of objcopy tool
+
+  objcopy_rel=`$objectcopy --version | $awkprg '{ print $3 }'`
+  major=`echo $objcopy_rel | $awkprg -F. '{ print $1 }'`
+  minor=`echo $objcopy_rel | $awkprg -F. '{ print $2 }'`
+  
+  if test "$major" -lt 2
+  then
+    echo "*** Please update version of objcopy program to (at least) v2.7."
+    echo "*** You can find it in binutils package rel 2.7 and up."
+    exit
+  else
+    if test "$major" -eq 2 && test "$minor" -lt 7
+    then
+      echo "*** Please update version of objcopy program to (at least) v2.7."
+      echo "*** You can find it in binutils package rel 2.7 and up."
+      exit
+    fi
+  fi
+fi
+
+OBJCOPY=$objectcopy
+AC_SUBST(OBJCOPY)
+
+dnl We need the object dump utility too
+
+AC_CHECK_PROG(objectdump, objdump, objdump, noobjectdump)
+if test "$objectdump" = 'noobjectdump'
+then
+  echo "*** There is no objectdump program configured in your PATH."
+  echo "*** Please install GNU binutils, with objectcopy 2.7 and up."
+  echo "*** Be sure to set PATH variable accordingly before re-run configure."
+  exit
+else
+  dnl Check version of objcopy tool
+
+  objectdump_rel=`$objectdump --version | $awkprg '{ print $3 }'`
+  major=`echo $objectdump_rel | $awkprg -F. '{ print $1 }'`
+  minor=`echo $objectdump_rel | $awkprg -F. '{ print $2 }'`
+
+  if test "$major" -lt 2
+  then
+    echo "*** Please update version of objcwdump program to (at least) v2.7."
+    echo "*** You can find it in binutils package rel 2.7 and up."
+    exit
+  else
+    if test "$major" -eq 2 && test "$minor" -lt 7
+    then
+      echo "*** Please update version of objdump program to (at least) v2.7."
+      echo "*** You can find it in binutils package rel 2.7 and up."
+      exit
+    fi
+  fi
+fi
+  
+OBJDUMP=$objectdump
+AC_SUBST(OBJDUMP)
+
+dnl The linker is also essential :)
+
+AC_MSG_CHECKING(linker)
+
+dnl Check if user want to use a linker different from standard probing rules
+
+if test "$with_ld" = 'no'
+then
+  LD=`$CC -print-prog-name=ld`
+
+  dnl Sometimes, with custom-compiled version of gcc, the output of the
+  dnl above command does *not* return the absolute path of ld, but only
+  dnl the linker program name. If this is the case, we compute ourselves
+  dnl the full linker path.
+
+  if test "$LD" = 'ld'
+  then
+    LD=`which ld`
+  fi
+else
+  LD=$with_ld
+fi
+
+if test -x $LD
+then
+  dnl Get the ld version string. Since ld output is version/platform 
+  dnl dependant, we parse it differently for architectures.The output
+  dnl will be that <rel> contains the release number (e.g. "2.7").
+
+  case $PLATFORM in
+  I80X86)     ldver=`$LD -V`; rel=`echo $ldver | $awkprg '{print $4}'` ;;
+  SPARC)      rel='2.7' ;;
+  esac
+else
+  echo "*** There is no linker program in your system."
+  echo "*** Please install GNU binutils, with ld 2.7 and up."
+  echo "*** Be sure to set PATH variable accordingly before re-run configure."
+  exit
+fi
+  
+dnl ld version check. Verify that <rel> is newer enough for our purposes.
+dnl Again, the criteria differs from platform, so we parse it differently.
+
+major=`echo $rel | $awkprg -F. '{print $1}'`
+minor=`echo $rel | $awkprg -F. '{print $2}'`
+
+if test "$major" -lt 2
+then
+  echo "*** Please update version of ld program to (at least) v2.7."
+  echo "*** You can find it in binutils package rel 2.7 and up."
+  exit
+else
+  if test "$major" -eq 2 && test "$minor" -lt 7
+  then
+    echo "*** Please update version of ld program to (at least) v2.7."
+    echo "*** You can find it in binutils package rel 2.7 and up."
+    exit
+  fi
+fi
+
+AC_SUBST(LD)
+AC_MSG_RESULT($LD)
+
+dnl Alliance OS requires ORBit
+dnl The presence and configuration of ORBit is probed through the program
+dnl orbit-config. There are two way of accessing it: one executing the
+dnl program orbit-config accessing via the path dirs, the other with an
+dnl environment variable that points to the ORBit base directory.
+
+dnl Checks for libraries.
+
+dnl **************Compilation flags setting phase**********************
+dnl We force maximum warning check level
+
+if test "$with_debuginfo" = "yes"
+then
+  CFLAGS="-Wall -W -g"
+else
+  CFLAGS="-Wall -W"
+fi
+
+AC_SUBST(CFLAGS)
+
+if test "$with_tracinginfo" = "yes"
+then
+  FLAGS="-DSKTRACE"
+else
+  FLAGS=""
+fi
+
+dnl We define here this macro, since is used in several places.
+
+CPPFLAGS="-D$PLATFORM "$FLAGS
+AC_SUBST(CPPFLAGS)
+
+dnl Checks for header files (in all reality these are only needed in
+dnl "ad-interim" fashion, since they are used by UNIXesque versions of
+dnl IOSK and /research programs. When things are all done, we will probably
+dnl wipe out all these).
+
+AC_HEADER_DIRENT
+AC_HEADER_STDC
+AC_CHECK_HEADERS(fcntl.h sys/ioctl.h unistd.h)
+
+dnl Checks for typedefs, structures, and compiler characteristics.
+AC_C_CONST
+
+dnl Checks for library functions.
+AC_TYPE_SIGNAL
+AC_CHECK_FUNCS(getcwd strstr)
+
+dnl *************** Host file system changes phase **********************
+dnl Creates symbolic links inside hardware-depandant part of the tree.
+
+if test "$PLATFORM" = 'I80X86'
+then
+  ln -s development/CK/include/architecture/$PLATFORM development/CK/include/sys 2> /dev/null
+  ln -s development/CK/architecture/$PLATFORM include/architecture/PENTIUM 2> /dev/null
+  ln -s development/CK/architecture/$PLATFORM architecture/PENTIUM 2> /dev/null
+  ln -s development/CK/architecture/$PLATFORM lib/architecture/PENTIUM 2> /dev/null
+  ln -s development/boot/$PLATFORM development/boot/architecture/PENTIUM 2> /dev/null
+fi
+
+mkdir -p development/KL/Exec/TestSuite/objects/architecture/$PLATFORM
+mkdir -p development/KL/Exec/TestSuite/assembly/$PLATFORM
+
+dnl Check which kind of make we are using. Check only gmake if user tell so.
+echo "------Makefile generation---------------------------------"
+
+COMMONDEP="../../include/typewrappers.h ../../include/systemdefs.h ../../include/klibs.h"
+AC_SUBST(COMMONDEP)
+
+AC_OUTPUT(Makefile development/KL/Alloc/Makefile development/KL/Exec/Makefile development/KL/Exec/MakeTest development/KL/Exec/TestSuite/MakeTest development/KL/Memory/Makefile development/KL/Memory/MakeTest development/KL/Msg/Makefile development/KL/String/Makefile development/KL/String/MakeTest development/KL/Monitor/Makefile development/KL/Monitor/MakeTest development/KL/Queue/Makefile development/KL/Queue/MakeTest development/KL/Threads/Makefile development/CK/Makefile development/CK/demo/Makefile development/CK/lib/Makefile development/IOSK/Makefile development/LM/IOSK/ibm-pc/ParallelPort/Makefile development/LM/Makefile development/LM/MakeTest development/LM/TestSuite/MakeTest development/boot/shared/Makefile development/boot/ABL/Makefile development/boot/GRUB/Makefile development/boot/GRUB/stage1/Makefile development/boot/GRUB/stage2/Makefile)
+
+dnl Output all digested information about source tree generation data
+
+pathld=$LD
+
+if test "$with_make" = 'no'
+then
+  pathmake=`which $MAKE`
+  MAKEname=$MAKE
+else
+  pathmake=$with_make
+  MAKEname=`echo $with_make | $awkprg -F/ '{ print $NF }'`
+fi
+
+if test "$with_cc" = 'no'
+then
+  pathcc=`which $CC`
+  CCname=$CC
+else
+  pathcc=$with_cc
+  CCname=`echo $with_cc | $awkprg -F/ '{ print $NF }'`
+fi
+
+if test "$with_ld" = 'no'
+then
+  if test "$LD" = 'ld'
+  then
+    pathld=`which $LD`
+    LDname=$LD
+  else
+    pathld=$LD
+    LDname="ld"
+  fi
+else
+  pathld=$with_ld
+  LDname=`echo $with_ld | $awkprg -F/ '{ print $NF }'`
+fi
+
+pathobj=`which $OBJCOPY`
+pathar=`which $AR`
+pathas=`which $AS`
+
+echo "------Environment definition---------------------------------"
+echo
+echo "Target CPU:    " $PLATFORM
+echo
+echo "C compiler:    " $CCname "-->" $pathcc 
+echo "Assembler:     " $AS "-->" $pathas
+echo "Object utility:" $OBJCOPY "-->" $pathobj
+echo "Librarian:     " $AR "-->" $pathar
+echo "Linker:        " $LDname "-->" $pathld
+echo "Make:          " $MAKEname "-->" $pathmake
+echo
+echo "Final compilation flags and #defines:"
+echo "CFLAGS=" $CFLAGS
+echo "CPPFLAGS=" $CPPFLAGS
+echo "ARFLAGS=" $ARFLAGS
+echo
+

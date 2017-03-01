@@ -1,0 +1,41 @@
+# Compile the Alliance Kernel Library Tester
+#
+# HISTORY
+# Date     Author    Rev    Notes
+# 06/12/98 scosta    1.0    First draft
+# 02/02/00 scosta    1.1    Taken away SKTRACE because KLprint is used
+# 12/12/00 scosta    1.2    More dependancies
+# 21/12/03 scosta    1.3    Even more dependancies
+
+CC=gcc
+CPPFLAGS=-DSPARC -DSKTRACE
+CFLAGS=-Wall -W -g
+RM=rm -f
+COMMONDEP=../../include/typewrappers.h ../../include/systemdefs.h ../../include/klibs.h
+
+FLAGS= -o $@ -c
+PPFLAGS= -I ../../include -I include
+
+LIBS = -Lbinaries -L../Monitor/binaries -L../String/binaries \
+       -L../Memory/binaries -lmonitor -lstring -lmemory
+OFLAGS= -o
+
+objects/%.o: %.c $(COMMONDEP) 
+	$(CC) $(CPPFLAGS) $(PPFLAGS) $(CFLAGS) $(FLAGS) $<
+
+SRCS= MemoryTester.c
+
+OBJS= ./objects/MemoryTester.o
+
+FINAL= ./binaries/TestMemory
+
+$(FINAL): $(OBJS) ./binaries/libmemory.a \
+          ../String/binaries/libstring.a ../Monitor/binaries/libmonitor.a
+	$(CC) $(OBJS) $(LIBS) $(OFLAGS) $@
+
+test:
+	$(FINAL)
+
+clean:
+	$(RM) $(OBJS) $(FINAL)
+

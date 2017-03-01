@@ -1,0 +1,164 @@
+/*
+ * Memory Library tester
+ *
+ * This program takes care of testing of various Memory Library functions
+ *
+ * HISTORY
+ * Date     Author    Rev    Notes
+ * 19/12/99 scosta	  1.0    First draft
+ * 02/02/00 scosta    1.1    KLtrace->KLprint uncondtional print
+ * 30/11/00 scosta    1.2    More effective tests in order to track bugs
+ * 24/11/02 scosta    1.3    Better self-test handling
+ * 
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation.
+ * This program is distributed but WITHOUT ANY WARRANTY; without even the
+ * implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+ * See the GNU General Public License for more details.
+ */
+
+#include <klibs.h>
+#include <testreport.h>
+#include <teststubs.h>
+
+#define TEST_BLOCKSIZE 256
+
+UBYTE testMemoryBlock[TEST_BLOCKSIZE];
+UBYTE anotherMemoryBlock[TEST_BLOCKSIZE];
+UBYTE buffer[TEST_BLOCKSIZE];
+
+LOCAL VOID setMemoryPattern(UWORD32 size)
+
+{
+	UWORD32 i;
+
+	for(i=0;i<size;i+=2) {
+		testMemoryBlock[i]=anotherMemoryBlock[i]=i;
+	}
+	for(i=1;i<size;i+=2) {
+		testMemoryBlock[i]=anotherMemoryBlock[i]=255-i;
+	}
+}
+
+int main()
+
+{
+	UWORD32 size;
+	UBYTE *returnPointer;
+	UWORD32 i;
+	UWORD32 testSummary=1;
+	UWORD32 returnCode;
+
+	ReportTitle("Memory library test suite");
+
+	TestTitle("KLmemoryCompare()");
+
+	size=sizeof(testMemoryBlock);
+	setMemoryPattern(size);
+
+	returnCode=(KLmemoryCompare(testMemoryBlock, anotherMemoryBlock, size)!=0);
+	testSummary&=ReportResult(returnCode, FALSE);
+
+	/* Now test two different memory block that differs for only
+	 * one byte. Do it several times in several different positions
+	 * and with different corrupted memory location values.          */
+	
+	for(i=0;i<8;i++) {
+		int randIndex;
+		int corruption;
+		unsigned char temporarySave;
+		
+		randIndex=(int) (255.0*rand()/(RAND_MAX+1.0));
+		temporarySave=testMemoryBlock[randIndex];
+		corruption=(int) (255.0*rand()/(RAND_MAX+1.0));
+		if(testMemoryBlock[randIndex]==corruption) {
+			testMemoryBlock[randIndex]=corruption+1;
+		} else {
+			testMemoryBlock[randIndex]=corruption;
+		}
+
+		returnCode=(KLmemoryCompare(testMemoryBlock, anotherMemoryBlock, size)!=0);
+		testSummary&=ReportResult(returnCode, TRUE);
+
+		testMemoryBlock[randIndex]=temporarySave;
+	}
+
+	TestTitle("KLmemorySet()");
+
+	testMemoryBlock[TEST_BLOCKSIZE-1]=0x55;
+	returnPointer=KLmemorySet(testMemoryBlock, 0, size-1);
+	
+	returnCode=(returnPointer!=testMemoryBlock);
+	testSummary&=ReportResult(returnCode, FALSE);
+		
+	returnCode=(testMemoryBlock[TEST_BLOCKSIZE-1]!=0x0);
+	testSummary&=ReportResult(returnCode, TRUE);
+
+	for(i=0;i<size-1;i++) {
+		if(testMemoryBlock[i]!=0) {
+			break;
+		}
+	}
+		
+	returnCode=(i==size-1);
+	testSummary&=ReportResult(returnCode, TRUE);
+
+	returnPointer=KLmemorySet(&testMemoryBlock[2], 0xAA, size-3);
+	for(i=0;i<size-3;i++) {
+		if(testMemoryBlock[i+2]!=0xAA) {
+			testSummary&=ReportResult(FALSE, TRUE);
+			break;
+		}
+	}
+	
+	TestTitle("KLmemoryCopy()");
+
+	setMemoryPattern(size);
+	returnPointer=KLmemoryCopy(buffer, testMemoryBlock, size);
+	returnCode=(returnPointer!=buffer);
+	testSummary&=ReportResult(returnCode, FALSE);
+	
+	for(i=0;i<size;i++) {
+		if(buffer[i]!=anotherMemoryBlock[i]) {
+			break;
+		}
+	}
+
+	returnCode=(i==size);
+	testSummary&=ReportResult(returnCode, TRUE);
+
+	returnPointer=KLmemoryCopy(&buffer[1], testMemoryBlock, size-1);
+
+	for(i=1;i<size;i++) {
+	    if(buffer[i]!=anotherMemoryBlock[i-1]) {
+			break;
+		}
+	}
+
+	returnCode=(i==size);
+	testSummary&=ReportResult(returnCode, TRUE);
+	
+	buffer[15]=0x5A;
+	returnPointer=KLmemoryCopy(buffer, testMemoryBlock, 15);
+
+	for(i=0;i<15;i++) {
+	    if(buffer[i]!=anotherMemoryBlock[i]) {
+			break;
+		}
+	}
+
+	returnCode=(i==15);
+	testSummary&=ReportResult(returnCode, TRUE);
+
+	returnCode=(buffer[i]!=0x5A);
+	testSummary&=ReportResult(returnCode, FALSE);
+
+    EndReport();	
+
+	if(testSummary) {	
+		exit(0);
+	} else {
+		exit(1);
+	}
+}

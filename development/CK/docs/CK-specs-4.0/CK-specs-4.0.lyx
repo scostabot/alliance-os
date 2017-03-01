@@ -1,0 +1,2053 @@
+#This file was created by <root> Sat Nov 21 21:41:01 1998
+#LyX 0.10 (C) 1995 1996 Matthias Ettrich and the LyX Team
+\lyxformat 2.10
+\textclass article
+\language default
+\inputencoding default
+\fontscheme default
+\epsfig dvips
+\papersize usletter 
+\paperfontsize 10 
+\baselinestretch 1.00 
+\secnumdepth 3 
+\tocdepth 3 
+\paragraph_separation indent 
+\quotes_language english 
+\quotes_times 2 
+\paperorientation portrait 
+\papercolumns 1 
+\papersides 1 
+\paperpagestyle fancy 
+
+\layout LaTeX Title
+
+Alliance Cache Kernel Specification
+\begin_float footnote 
+\layout Standard
+
+This document is (C) 1998 Rudy Gingles, Ramon van Handel, and Chris Trawick,
+ the Alliance Operating System Team.
+This document is distributed under the terms of the Open Content License
+\end_float 
+\layout Author
+
+Rudy Gingles
+\begin_float footnote 
+\layout Standard
+
+Contact address: spy@oregonsoft.
+com
+\end_float 
+, Ramon van Handel
+\begin_float footnote 
+\layout Standard
+
+Contact address: vhandel@chem.
+vu.
+nl
+\end_float 
+, Chris Trawick
+\begin_float footnote 
+\layout Standard
+
+Contact address: hazard@lords.
+com
+\end_float 
+\layout Date
+
+Release 4
+\layout Standard
+
+
+\begin_inset LatexDel \tableofcontents
+
+\end_inset 
+
+
+\layout Standard
+
+
+\begin_inset LatexDel \listoffigures
+
+\end_inset 
+
+
+\layout Section
+
+Introduction
+\layout Standard
+
+This document details the Cache Kernel to be used in the Alliance Operating
+ System Core.
+ The Alliance Cache Kernel (henceforth CK) is based on a highly modified
+ version of Stanford's Caching Model of Operating System Functionality
+\begin_float footnote 
+\layout Standard
+
+http://www-dsg.
+stanford.
+edu/papers/cachekernel/main.
+html
+\end_float 
+.
+ An overview of this model is given in the Alliance General System Specification
+\begin_float footnote 
+\layout Standard
+
+[URL here]
+\end_float 
+.
+
+\layout Standard
+
+According to the Stanford Model, The Cache Kernel acts as a cache for three
+ types of operating system objects: address spaces, threads and kernels.
+ It holds the descriptors for the active subset of these objects, executing
+ the performance-critical actions on these objects.
+ Moreover, it mentions as goal that the 
+\begin_inset Quotes eld
+\end_inset 
+
+caching model reduces supervisor-level complexity, provides application
+ control of resource management and provides application control over exception
+ conditions and recovery, addressing the problems with micro-kernel designs
+ to date
+\begin_inset Quotes erd
+\end_inset 
+
+.
+ With this goal in mind, we have attempted to reduce the complexity of the
+ CK to a minimum, while still provided sufficient resources for our applications.
+
+\layout Standard
+
+The Alliance Cache Kernel caches five types of objects.
+ They are Memory Space, Address Space, Kernel, Thread and Dynamic Code objects.
+ The first two object types define the physical memory range reserved for
+ applications, and its virtual mapping.
+ Kernel objects define and provide services to other objects.
+ The last two object types define the availabilty of static or dynamic code
+ in the system.
+
+\layout Standard
+
+Broadly speaking, the Alliance Cache Kernel consists of five subsystems,
+ each with its own functions and data structures.
+ The first subsystem is the System Object Manager.
+ The System Object Manager (henceforth the SOM) performs the actual caching
+ of the system objects.
+ It is the heart of the system.
+ The other three subsystems perform performance-critical actions on the
+ objects loaded into the SOM.
+ They are the Thread Scheduling Subsystem, the Memory Space Management Subsystem
+, the Inter-Object Communication Subsystem and the Dynamic Code Management
+ Subsystem.
+
+\layout Standard
+
+All subsystems run simultaneously, and are tightly integrated with each
+ other.
+ Although we will discuss them seperately here for simplicity, they are
+ all integrated parts of the whole CK, not actually separate modules.
+
+\layout Standard
+
+In the following sections, the CK subsystems and object types will be defined
+ in detail, and it will be shown how they are implemented in the Alliance
+ Core System, along with brief reviews on the more complicated data structures.
+ The Alliance system is being coded with portability in mind, so system
+ dependent constructions are being avoided.
+ In order to clarify this text, though, examples will be given for the implement
+ation on machines based on the Intel 80x86 series of processors (henceforth
+ x86.
+)
+\layout Section
+
+The System Objects and the System Object Manager
+\layout Subsection
+
+The System Object Manager
+\layout Standard
+
+The System Object Manager manages the caching of system objects within the
+ CK.
+ System objects are data representations of the memory spaces, address spaces,
+ threads, dynamic code objects and kernels currently being used on the system.
+ The caching model allows an object to be selectively cached within the
+ CK at any time by the external kernel (henceforth EK) controlling the particula
+r object, giving it more control over memory management, thread scheduling
+ and inter-process communication, and greatly simplifying the tasks of the
+ CK.
+
+\layout Subsubsection
+
+Caching objects
+\layout Standard
+
+All objects are created by EKs.
+ Address Space objects and Thread objects reside in the EK's address space,
+ and are managed directly by the owning EK (which is not neccessarily the
+ loading EK, as will be shown later in this document.
+) Memory Space objects, Kernel objects, and Dynamic Code objects reside
+ in the CK address space, and are managed by the CK.
+ All of these objects are created in the loading kernel's address space,
+ but are transferred to the CK address space by changing the page mappings
+ for both address spaces.
+ This does not mean that the loading kernel does not have read access, but
+ simply that it cannot change the object data (as it is managed by the CK.
+)
+\layout Standard
+
+To cache an object into the CK, the EK passes a pointer to the object in
+ its own address space to the CK.
+ For each object cached, the CK creates an Object Header, a fixed-size structure
+ containing important information the CK needs to manage the object, inside
+ the CK address space.
+ The object header is the same structure for any of the five object types.
+
+\layout Standard
+
+Once the Object Header has been constructed, the CK returns to the EK an
+ Object Descriptor, which is a unique value which is used when referncing
+ the object (in system calls, etc.
+) It is also used by the EK to unload the object from the CK.
+ Every time an object is cached, it is assigned a new descriptor, therefore
+ descriptors shouldn't be used at all by the EK except for interfacing to
+ the CK.
+ Currently, a descriptor is defined as a pointer to the object's Object
+ Header within the CK address space.
+ This might change in the future, though, when Persistance
+\begin_float footnote 
+\layout Standard
+
+The Alliance Persistance Specification can be found at [URL here]
+\end_float 
+ is implemented, which puts strict requirements on the format of descriptors.
+
+\layout Standard
+
+Once an object has been cached into the CK, it becomes active, which means
+ it becomes candidate for being worked on by any of the other CK subsystems.
+ For example, a thread object cached into the CK becomes candidate for being
+ scheduled.
+ Likewise, when an object is uncached from the CK, it becomes inactive,
+ and is completely ignored by the CK.
+ For example, if we uncached our previously cached thread object, it could
+ no longer be scheduled to execute.
+ To the CK, it no longer exists.
+ If you later recache the thread object, the CK will see it as a completely
+ new object, and will assign it a new descriptor.
+ To uncache an object, the EK simply supplies the CK with the appropriate
+ descriptor, which the CK uses first to make sure the EK is allowed access
+ to the object, and then to locate the Object Header and de-allocate it.
+ The actual object data stay untouched when uncaching, so it easy to reuse
+ the object at a later time.
+
+\layout Subsubsection
+
+The Object Dependency Graph
+\layout Standard
+
+The CK reocrds the dependencies between the objects that are cached in the
+ Object Dependency Graph, which is an unweighted directed graph.
+ The reason for doing this is so that when an object is uncached from the
+ CK, all its dependant objects are uncached also.
+ In the Object Dependency Graph, the heads of the edges point to the dependant
+ objects.
+ The figure below shows the relations inside the object dependency graph
+ in a simple system.
+
+\layout Standard
+\added_space_top 0.30 \added_space_bottom 0.30 \align center 
+
+\begin_inset Figure size 462 287
+file relgraph.ps
+flags 1
+
+\end_inset 
+
+
+\begin_float fig 
+\layout Caption
+
+The Relations in the Object Dependency Graph
+\end_float 
+\layout Standard
+
+Most of the dependencies in this figure will be clarified later in this
+ document.
+ Each kernel has one circular dependency, which was made to ensure that
+ unloading the kernel would also unload its ORB and Signal Handler threads,
+ but that unloading one of those threads would also unload the rest of the
+ kernel system.
+ The object uncaching calls in the CK have code to deal with this circular
+ dependency.
+ Other circular dependencies are not allowed.
+
+\layout Standard
+
+It should be stressed that the Object Dependency Graph does 
+\shape italic 
+not
+\shape default 
+ hold all relations between objects.
+ A thread, for instance, is certainly directly related to its parent kernel.
+ The goal of the Object Dependency Graph is to store all information needed
+ for the correctly unloading of groups of objects with the least possible
+ dependencies.
+ In the case of the thread, for instance, it is not neccesary to store the
+ thread-kernel dependency because if the kernel is unloaded, then its memory
+ space is unloaded as well, which means that the address space the thread
+ is dependant of is unloaded too.
+ Only the address space dependency needs to be stored for proper unloading.
+ Storing more dependencies would only make the system slower more memory-hungry.
+
+\layout Subsubsection
+
+Internal Object Representation
+\layout Standard
+
+As was mentioned before, objects are represented inside the CK by Object
+ Headers.
+ The object headers are arranged in linked lists; each object type has its
+ own linked list of Object Headers.
+ The Object Headers of the different object types are kept in separate lists
+ in order to facilitate searching for an object of one certain object type.
+
+\layout Standard
+
+The Object Dependency Graph is represented using a modified version of the
+ edge-list representation for directed graphs.
+ In the representation used in the CK, all dependencies between objects
+ are stored in the Object Dependency Array (ODA.
+) The ODA is an array of edges.
+ Vertices are represented by Object Headers.
+ An edge is represented by a structure containing a pointer to its tail
+ vertex as well as a pointer to its head vertex (dependant.
+) The edges in the ODA are sorted by tail vertex.
+ Each vertex contains a pointer to its first dependency in the ODA, as well
+ as the number of dependencies.
+ Thus, the ODA actually consists of many sub-arrays, each representing the
+ dependencies of one vertex.
+ By keeping the array sorted while adding/deleting dependencies, access
+ to the dependencies is fast.
+ An example for the chosen representation for a simple graph with two types
+ of object (not a real example) is shown below.
+ For simplicity, addresses were replaced by vertex index numbers.
+
+\layout Standard
+\added_space_top 0.30 \added_space_bottom 0.30 \align center 
+
+\begin_inset Figure size 396 249
+file graphrep.ps
+flags 2
+
+\end_inset 
+
+
+\begin_float fig 
+\layout Caption
+
+The Internal Representation of Objects and Object Dependencies
+\end_float 
+\layout Standard
+
+An object header has the following structure:
+\layout LyX-Code
+
+typedef struct ObjectHeader VERTEX;
+\layout LyX-Code
+
+typedef struct {VERTEX *parent, *child;} EDGE;
+\newline 
+
+\layout LyX-Code
+
+struct ObjectHeader {
+\layout LyX-Code
+
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+ /* Object information */
+\layout LyX-Code
+
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+ DATA
+\protected_separator 
+
+\protected_separator 
+ objectSignature;
+\protected_separator 
+ /* Object Signature 
+\protected_separator 
+ 
+\protected_separator 
+ 
+\protected_separator 
+ 
+\protected_separator 
+ 
+\protected_separator 
+ 
+\protected_separator 
+ 
+\protected_separator 
+ 
+\protected_separator 
+ 
+\protected_separator 
+ */
+\layout LyX-Code
+
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+ DATA
+\protected_separator 
+
+\protected_separator 
+ flags;
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+ /* Miscellaneous flags
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+*/
+\layout LyX-Code
+
+
+\protected_separator 
+
+\layout LyX-Code
+
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+ /* Object data */
+\layout LyX-Code
+
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+ ADDR
+\protected_separator 
+
+\protected_separator 
+ objectSize;
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+ /* Object Size in bytes
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+*/
+\layout LyX-Code
+
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+ ADDR
+\protected_separator 
+
+\protected_separator 
+ objectData;
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+ /* Pointer to the object itself
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+*/
+\layout LyX-Code
+
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+ VERTEX *parentKernel;
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+ /* Pointer to the parent kernel
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+*/
+\layout LyX-Code
+
+
+\protected_separator 
+
+\layout LyX-Code
+
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+ /* Object list data */
+\layout LyX-Code
+
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+ VERTEX *nextObject;
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+ /* Pointer to next peer object
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+*/
+\layout LyX-Code
+
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+ VERTEX *prevObject;
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+ /* Pointer to previous peer object
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+*/
+\layout LyX-Code
+
+
+\protected_separator 
+
+\layout LyX-Code
+
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+ /* Dependency data */
+\layout LyX-Code
+
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+ DATA
+\protected_separator 
+
+\protected_separator 
+ dependancies;
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+ /* Number of dependant objects
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+ 
+\protected_separator 
+*/
+\layout LyX-Code
+
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+ EDGE
+\protected_separator 
+
+\protected_separator 
+ *firstDependancy; /* Pointer to first dependancy in ODA
+\protected_separator 
+*/
+\layout LyX-Code
+
+};
+\layout Standard
+
+The object signature determines the type of object the object header points
+ to.
+ The object signatures can be found in the table below.
+
+\layout Standard
+\added_space_top 0.30 \added_space_bottom 0.30 \align center \LyXTable
+multicol2
+6 2
+1 1
+1 0
+1 0
+1 0
+1 0
+1 1
+2 1 0
+2 1 1
+0 2 1 1
+0 2 1 1
+0 8 1 0
+0 8 1 0
+0 8 1 0
+0 8 1 0
+0 8 1 0
+0 8 1 0
+0 8 1 0
+0 8 1 0
+0 8 1 1
+0 8 1 1
+
+Object Type
+\newline 
+Signature
+\newline 
+Kernel
+\newline 
+'AlOK'
+\newline 
+Thread
+\newline 
+'AlOT'
+\newline 
+Dynamic Code
+\newline 
+'AlOD'
+\newline 
+Memory Space
+\newline 
+'AlOM'
+\newline 
+Address Space
+\newline 
+'AlOA'
+\layout Standard
+
+The object flags contain miscellaneous information about the object.
+ One of the flags is used to lock the object in the CK, perventing its being
+ unloaded.
+ Objects can only be locked by the Alliance Boot Loader (ABL.
+) Attempting to cache a locked object returns an error.
+ Only extremely vital objects are locked, like the IOSK.
+ Another flag specifies whether a kernel object is a System Kernel or an
+ Application Kernel (the difference between these kernels is explained in
+ the General System Specification.
+ The difference is mainly in functionality, and is not of any interest to
+ the CK.
+ System kernels might need special security priviledges, though, in order
+ to access hardware.
+ On x86, System Kernels run in Ring 1, whereas Application Kernels run in
+ ring 2.
+)
+\layout Standard
+
+The rest of the Object Header is straightforward; the place of the object
+ in the object list and the location of its dependencies are recorded, as
+ well as a pointer to the object data.
+ The parent kernel field has different uses; they are explained when the
+ object types are being discussed.
+ It can be set NIL if the object does not have a parent kernel.
+
+\layout Subsection
+
+Memory Space Objects
+\layout Subsection
+
+Address Space Objects
+\layout Subsection
+
+Thread Objects
+\layout Standard
+
+Thread objects represent the threads running on the system, whether they
+ be program threads or kernel threads.
+ A thread object has an object signature of 'AlOT' (Alliance Object - Thread.
+) Thread objects have the following structure:
+\layout LyX-Code
+
+typedef struct ThreadObject EVENT;
+\newline 
+
+\layout LyX-Code
+
+typedef enum {
+\layout LyX-Code
+
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+ ts_Running,
+\protected_separator 
+
+\protected_separator 
+ /* Running in timesharing mode
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+ */
+\layout LyX-Code
+
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+ ts_RealTime,
+\protected_separator 
+ /* Running in realtime mode
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+ */
+\layout LyX-Code
+
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+ ts_Idle,
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+ /* Running only when the system is idle
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+ */
+\layout LyX-Code
+
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+ ts_Blocked
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+ /* Blocked (not currently running)
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+ */
+\layout LyX-Code
+
+} ThreadState;
+\layout LyX-Code
+
+
+\protected_separator 
+
+\layout LyX-Code
+
+struct ThreadObject {
+\layout LyX-Code
+
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+ /* Self pointer */
+\layout LyX-Code
+
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+ DESCRIPTOR self;
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+ /* Descriptor of this object
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+*/
+\layout LyX-Code
+
+
+\protected_separator 
+
+\layout LyX-Code
+
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+ /* Memory-related stuff */
+\layout LyX-Code
+
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+ DESCRIPTOR addressSpace;
+\protected_separator 
+ /* Address space of thread
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+*/
+\layout LyX-Code
+
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+ ADDR inBuffer;
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+ /* Incoming IOC buffer
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+*/
+\layout LyX-Code
+
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+ ADDR outBuffer;
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+ /* Outgoing IOC buffer
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+*/
+\layout LyX-Code
+
+
+\protected_separator 
+
+\layout LyX-Code
+
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+ /* Scheduler control variables */
+\layout LyX-Code
+
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+ TIME quantum;
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+ /* The thread's quantum value
+\protected_separator 
+ 
+\protected_separator 
+ 
+\protected_separator 
+ 
+\protected_separator 
+ */
+\layout LyX-Code
+
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+ TIME defer;
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+ /* The thread's defer value
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+ 
+\protected_separator 
+ 
+\protected_separator 
+ 
+\protected_separator 
+*/
+\layout LyX-Code
+
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+ TIME time;
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+ /* Time when event should next occur */
+\layout LyX-Code
+
+
+\protected_separator 
+
+\layout LyX-Code
+
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+ /* Scheduler scratch space */
+\layout LyX-Code
+
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+ EVENT **heap;
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+ 
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+ /* Backpointer to the priheap 
+\protected_separator 
+ 
+\protected_separator 
+ 
+\protected_separator 
+ 
+\protected_separator 
+*/
+\layout LyX-Code
+
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+ ThreadState ts;
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+ /* Thread state
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+ 
+\protected_separator 
+ 
+\protected_separator 
+ 
+\protected_separator 
+*/
+\layout LyX-Code
+
+
+\protected_separator 
+
+\layout LyX-Code
+
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+ /* Hardware-related stuff */
+\layout LyX-Code
+
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+ TaskState taskState; 
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+
+\protected_separator 
+ /* The thread processor state 
+\protected_separator 
+ 
+\protected_separator 
+ 
+\protected_separator 
+ 
+\protected_separator 
+*/
+\layout LyX-Code
+
+};
+\layout Standard
+
+All objects contain their own descriptor, in order that finding the descriptor
+ for an object is fast (otherwise the object lists would need to be searched.
+)
+\layout Standard
+
+The thread object contains the descriptor of the address space in which
+ it resides.
+ It contains pointers to its incoming and outgoing inter-object communication
+ buffers inside its address space.
+ Furthemore, it contains several variables for use of the scheduler.
+ The communication and scheduling varialbles are dicussed with the belonging
+ subsystem.
+
+\layout Standard
+
+The thread object also contains a variable of type TaskState.
+ This type is defined differently for every hardware platform; it contains
+ any information that is needed in order to store the state of the thread
+ on the hardware platform.
+ It can be a pointer, a variable, a structure, etc.
+ On the x86 platform, TaskState is defined as the task's Task State Segemnt
+ (TSS.
+)
+\layout Standard
+
+When a thread is loaded into the CK, a descriptor is also passed for its
+ parent kernel.
+ The parent kernel of a thread provides services to that thread in the shape
+ of traps (or similar hardware services.
+) When the CK catches a trap, it redirects it to the parent kernel of the
+ currently running thread, unless the trap is reserved for the use of the
+ CK.
+ Often, the kernel provides any services not provided by the CK thread structure
+, including an open file table, IPC to other threads on that kernel, memory
+ micromanagement (malloc(),) etc.
+ In most systems, the kernel will also create and manage the thread's thread
+ structure itself.
+
+\layout Standard
+
+Having a parent kernel is not obligatory for a thread, though.
+ A thread can manage all of its needs itself, too, in part using libraries
+ that contain important management constructions (exokernel-like) and in
+ part by directly contacting System Kernels through the System ORB
+\begin_float footnote 
+\layout Standard
+
+See the General System Specification for a general overview of the SORB,
+ or the System ORB specification for a detailed description [URL here]
+\end_float 
+.
+ In that case, the parent kernel is set to NIL when caching the object.
+
+\layout Subsection
+
+Kernel Objects
+\layout Subsection
+
+Dynamic Code Objects
+\layout Subsection
+
+Implementation Issues
+\layout Subsection
+
+System Calls
+\layout Section
+
+The Thread Scheduling Subsystem
+\layout Standard
+
+The Alliance Cache Kernel contains a very flexible type of scheduler
+\begin_float footnote 
+\layout Standard
+
+The design for the Alliance Thread Scheduler is courtesy of John Fine <johnfine@
+erols.
+com>
+\end_float 
+, which supports timesharing threads as well as real-time threads.
+ The scheduler uses dynamic-lenghth timer ticks to provide optimal performance.
+
+\layout Subsection
+
+Interface to the Programmer
+\layout Subsubsection
+
+Timesharing Threads
+\layout Standard
+
+The Alliance Scheduler uses two values in the Thread Object structure to
+ determine how a timesharing thread is to be run:
+\layout Itemize
+
+Quantum
+\layout Itemize
+
+Defer
+\layout Standard
+
+Each time a thread gets a turn at the CPU it gets quantum 
+\begin_inset Quotes eld
+\end_inset 
+
+microticks
+\begin_inset Quotes erd
+\end_inset 
+
+.
+ A microtick is the unit of time in which the length of timer ticks can
+ be set on the target platform (on x86, a microtick is about 839 nanoseconds.
+ Thus on x86, most applications will want the quantum for typical threads
+ to be several thousand microticks.
+) After the thread's quantum is finished, its next execution time is calculated
+ by adding defer to its previous execution time.
+ Thus, the share of CPU time a thread gets is equal to quantum/defer.
+ The thread's percentage of CPU time can be calculated by dividing the share
+ by the sum of the shares of all threads in the system, and multiplying
+ by 100%.
+
+\layout Standard
+
+Please note that quantum and defer are integers, but share can be any value.
+ In fact neither share nor the percentage of CPU time are ever actually
+ calculated by the scheduler.
+ The scheduler works strictly with quantum and defer.
+ Share just happens as a result.
+
+\layout Subsubsection
+
+Realtime Threads
+\layout Standard
+
+Every thread starts out as a timesharing thread when it is loaded.
+ The difference between realtime and timesharing threads is that realtime
+ threads 
+\shape italic 
+calculate their own next execution time.
+ 
+\shape default 
+In order to load its deadlines, or next execution times, the thread needs
+ to have access directly (by modifying it directly) or indirectly (through
+ a system call to its parent kernel) to its Thread Object structure.
+ When the scheduler notices the thread changed its own next execution time,
+ it will assume the thread is realtime and handle it accordingly.
+ If the thread somehow fails to load the next deadline during its quantum,
+ it automatically reverts to being a timesharing thread, until it loads
+ a deadline again.
+
+\layout Standard
+
+The scheduler has a separate 
+\begin_inset Quotes eld
+\end_inset 
+
+clock
+\begin_inset Quotes erd
+\end_inset 
+
+ for realtime and timesharing threads.
+ Neither clocks represent the 
+\begin_inset Quotes eld
+\end_inset 
+
+real
+\begin_inset Quotes erd
+\end_inset 
+
+ time.
+ The clocks are used purely to measure time in respect to a previous time.
+ The timesharing clock generally tends to run ahead on the realtime clock;
+ in the realtime clock, the time progresses in accurate units, while this
+ is not neccessarily the case for the timesharing clock.
+ Both clocks are circular (they go back to zero when they overflow.
+) Realtime threads can retreive the current realtime clock count from the
+ CK using a system call in case they need to use it to calculate their next
+ deadline.
+
+\layout Standard
+
+Realtime threads will generally want to terminate their quantum before it
+ has completely finished.
+ The way the thread does this is system-dependant (on x86 an interrupt is
+ invoked which calls the scheduler,) but the function quantumDone() is used
+ on all systems and is defined it sys/realtime.
+h.
+ The quantum and defer values in the Thread Object structure are only there
+ for the case that the realtime thread fails to load its deadline.
+
+\layout Standard
+
+Realtime threads are always given priority over timesharing threads.
+
+\layout Subsubsection
+
+Idle Threads
+\layout Standard
+
+The thread scheduler provides another way of scheduling a thread.
+ Idle threads are timesharing threads which are only run while the system
+ is idle.
+ When the scheduler can't find any normal timesharing or realtime threads
+ it starts running the idle threads in a timesharing manner.
+ Idle threads can be used to perform non-urgent actions without bringing
+ down system performance (for instance, an RC5 cracking program could be
+ scheduled in this way.
+ More to the point, a thread that flushes the disk cache would be scheduler
+ in this way.
+)
+\layout Subsubsection
+
+Polling
+\layout Standard
+
+There are situations where a thread will want to perform polling.
+ For instance, one could think a GRSK thread would want to poll waiting
+ for a Vertical Blanking event.
+ Only when one of those events has occured, the thread would refresh the
+ screen.
+ Such a thread is unsuitable for running as realtime thread, but running
+ it as timesharing thread is wasteful: most of the time it is invoked, it
+ merely wants to perform a few instructions; once in a while, it wants to
+ perform many instructions (but probably still less than its quantum.
+) Such threads can run as timesharing threads, but use the realtime quantumDone(
+) service when the polling event has not occured.
+ This considerably enhances system performance.
+ For example, implementation of the VBL poll would look like this:
+\layout LyX-Code
+
+for(;;) {
+\layout LyX-Code
+
+
+\protected_separator 
+ 
+\protected_separator 
+ while(!VBLoccured()) quantumDone();
+\layout LyX-Code
+
+
+\protected_separator 
+ 
+\protected_separator 
+ /* Handle VBL event: 
+\protected_separator 
+refresh screen */
+\layout LyX-Code
+
+}
+\layout Subsubsection
+
+Keeping Track of the 
+\begin_inset Quotes eld
+\end_inset 
+
+Real
+\begin_inset Quotes erd
+\end_inset 
+
+ Time
+\layout Standard
+
+The CK does not keep track of the real time (ie.
+, 17:30:29.
+83, Jan 4, 1999.
+) In order to get the real time, the system's RTC could be read.
+ Alternatively, a realtime thread can be loaded, which periodically updates
+ a real time variable, and distributes it to other objects if they ask.
+
+\layout Subsubsection
+
+Loading a Thread
+\layout Standard
+
+The scheduler keeps track of the scheduling mode of a thread in the ts variable
+ in its Thread Object structure.
+ When a thread is loaded, the SOM checks whether the ts variable equals
+ ts_Idle, and if so, loads it into the scheduler as an idle thread.
+ If it doesn't equal ts_Idle the SOM sets ts to ts_Blocked.
+ In order to activate the thread the thread loader has to call a system
+ call to load the thread into the scheduler as a timesharing thread.
+ The same system call can be used to block the thread.
+ Changing the ts variable at runtime does not work, but might cause the
+ thread to behave a bit irregularly for a while (it doesn't crash the system,
+ but don't do it anyway.
+)
+\layout Standard
+
+Please note that blocked threads are not actually loaded into and handled
+ by the scheduler.
+ Blocking/Unblocking threads is done using a specially provided system call.
+
+\layout Subsection
+
+Scheduler internals
+\layout Subsubsection
+
+The Priority Heaps
+\layout Standard
+
+The scheduler works with scheduling events.
+ Each scheduling event equals one Thread Object structure.
+ The scheduler keeps its events sorted by next execution time.
+ In order to do so efficiently, the scheduler uses a priority heap.
+ The priority heap is basically a binary tree.
+ It looks something like this:
+\layout Standard
+\added_space_top 0.30 \added_space_bottom 0.30 \align center 
+
+\begin_inset Figure size 144 134
+file priheap.ps
+flags 1
+
+\end_inset 
+
+
+\begin_float fig 
+\layout Caption
+
+A Priority Heap
+\end_float 
+\layout Standard
+
+.
+.
+.
+etc.
+ Each circle represents a scheduler event.
+ In a priority heap, 
+\shape italic 
+each event has a later or equal next execution time value than its parent.
+
+\shape default 
+ There is no other sorting criterium: the events are not in random order,
+ but also not completely sorted.
+ 
+\shape italic 
+The root event always has the earliest next execution time.
+
+\layout Standard
+
+The Alliance thread scheduler uses the array representation for the priority
+ heap to keep track of its events.
+ In the representation, the priority heap is represented by an array of
+ pointers to events blocks.
+ For example, the priority heap depicted above would be represented by the
+ array {&event0, &event1, &event2, &event3, &event4, &event5}.
+ The index of the parent of an event with index N is (N-1)/2, and its children
+ are 2N+1 and 2N+2.
+ The Alliance scheduler uses pointers into the priority heap, though, in
+ stead of indices out of performance considerations.
+ This changes the formulas a bit (see pri_heap.
+c for more information.
+)
+\layout Standard
+
+Two main operations exist on a priority heap: siftup() and siftdown().
+ Siftup is used to add an event to the heap.
+ Initially, the event is appended at the end of the heap.
+ Then the next execution time of the event is compared with that of its
+ parent.
+ If it's earlier, then the two are exchanged.
+ This is repeated until the event's parent's next execution time is earlier.
+ The event has then reached its appropiate place in the heap.
+ siftdown() is similar, but the other way around: when the next execution
+ time of the root event changes, it needs to be sifted down the heap until
+ it reaches the appropiate place in the heap.
+ In order to do this, its next execution time is compared with that of its
+ earliest child.
+ If it is later, the two are exchanged.
+ This is repeated until the correct position has been reached.
+
+\layout Standard
+
+In order to remove an event from the heap, the event to be removed is replaced
+ by the last event on the heap.
+ The subtree starting from that event is then sifted down in the same way
+ as siftdown() works.
+
+\layout Subsubsection
+
+Scheduling Timesharing Threads
+\layout Standard
+
+The scheduler manages three priority heaps: one for timesharing threads,
+ one for realtime threads, and one for idle threads.
+
+\layout Standard
+
+When a thread's quantum finishes, the scheduler looks whether it was a timeshari
+ng or a realtime thread.
+ If it was timesharing, and it is still timesharing (next execution time
+ hasn't changed during the quantum) then the next execution time variable
+ is incremented by defer, and the timesharing heap is sifted down.
+ The next timesharing thread to be run is then at the root of the timesharing
+ heap.
+
+\layout Standard
+
+If the next execution time value 
+\shape italic 
+has
+\shape default 
+ changed during the quantum, the event is removed from the timesharing heap,
+ and sifted up the realtime heap.
+ The next execution time value isn't touched.
+
+\layout Subsubsection
+
+Scheduling Realtime Threads
+\layout Standard
+
+If the thread was a realtime thread, and is still a realtime thread (next
+ execution time has changed) then the realtime heap is simply sifted down.
+ The next realtime thread to be run is now at the root of the realtime heap.
+
+\layout Standard
+
+If the thread was a realtime thread, but the next execution time hasn't
+ changed, the thread is removed from the realtime heap.
+ It cannot simply be sifted up the the timesharing heap, though, because
+ the realtime and timesharing clocks are not synchronised.
+ The next execution time for such a thread is calculated by adding defer
+ to the next execution time of the root event on the timesharing heap.
+ When the next execution time has been set, the event is sifted up the timeshari
+ng heap.
+
+\layout Subsubsection
+
+Scheduling Idle Threads
+\layout Standard
+
+If the previous thread was an idle thread, defer is added to its next execution
+ time value and the idle heap is sifted down, just like with timesharing
+ threads.
+ Idle threads cannot change to timesharing or realtime threads without being
+ blocked first.
+
+\layout Subsubsection
+
+Scheduling Policy: Who Runs Next ?
+\layout Standard
+
+After the scheduler has correctly handled the previously running thread,
+ it has to decide which thread will run next it does this in such a way
+ that realtime threads always have priority above timesharing threads.
+
+\layout Standard
+
+If the timesharing heap is empty, and either the realtime heap is empty,
+ or the next realtime thread has its deadline in the future sometime, then
+ an idle thread is scheduled (or if none is available, the CK idle loop
+ is scheduled.
+) If the next realtime thread isn't in the future, then it is scheduled.
+ If there is a pending timesharing thread, as well as a pending realtime
+ thread which is in the future, then the scheduler looks at the quantum
+ of the timesharing thread.
+ If it is less than the time until the next realtime deadline, then it runs
+ the pending timesharing thread with a shortened quantum, so that the next
+ realtime thread can be run on time.
+ In any other case, the next timesharing thread is run unconditionally.
+
+\layout Standard
+
+When the next thread to be run has been selected, the chosen quantum is
+ loaded into the system timer.
+ The scheduler then performs a context switch to the selected thread.
+ The system timer will reinvoke the scheduler when the quantum is finished.
+
+\layout Subsection
+\cursor 12 
+System Calls

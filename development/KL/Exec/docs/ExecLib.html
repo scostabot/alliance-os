@@ -1,0 +1,182 @@
+<!doctype html public "-//w3c//dtd html 4.0 transitional//en">
+<html>
+<head>
+   <meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1">
+   <meta name="Author" content="Stefano Costa">
+   <title>Executable Loader library specification</title>
+</head>
+<body>
+
+<center>
+<h1><a NAME="Top"></a>Executable Loader Library Specification Release 1.0</h1>
+
+<address> Stefano Costa &lt;<a href="mailto://stefanocosta@netscape.net">stefanocosta@netscape.net</a>></address>
+</center>
+
+<hr WIDTH="100%">
+<h2> Index</h2>
+
+<ol>
+<li> <a href="#Abstract">Abstract</a></li>
+
+<li> <a href="#Intro">Introduction</a></li>
+
+<li> <a href="#Implementation">Implementation</a></li>
+
+<ol>
+
+<li> <a href="#Initialization">Initialization</a></li>
+
+<li> <a href="#Opening">Opening</a></li>
+
+<li> <a href="#Loading">Loading</a></li>
+
+<li> <a href="#Addresses">Symbol addresses</a></li>
+
+<li> <a href="#Unloading">Unloading</a></li>
+</ol>
+
+<li> <a href="#Document History">Document history</a></li>
+</ol>
+
+<div align=right><i><a href="#Top">[Top]</a></i></div>
+
+<hr WIDTH="100%">
+<h2> <a NAME="Abstract"></a>1. Abstract</h2>
+&nbsp;&nbsp;&nbsp; This document describes the functional behaviour of the
+Executable Loader library, and the programming considerations in order to
+correctly load LMs and SKs in memory.
+
+<div align=right><i><a href="#Top">[Top]</a></i></div>
+
+<hr WIDTH="100%">
+<h2> <a NAME="Intro"></a>2. Introduction</h2>
+&nbsp;&nbsp;&nbsp; As any other OS, Alliance needs to load (and unload as well)  executable files in memory. The Executable Loader library is built for this purpose and implements
+a standard interface in order to load a memory image of the executable and
+collect symbol addresses defined within the executable being loaded.
+<p>&nbsp;&nbsp;&nbsp;As a specific Alliance OS twist, the Executable Loader library cannot assume that the
+executable file data comes from a disk or any other fixed device, but rather
+the library asks to caller to fill a memory buffer with requested data size and
+location, totally decoupled from actual device handling. This is needed because
+of the specialized SK architecture followed by Alliance OS: the IOSK manage
+all forms of I/O so it is the IOSK that can actually read from a disk, but the
+notion of file is managed by FSSK, not IOSK that actually manage raw disk
+handling. But the executable image can also comes from the network, so NetSK may
+be involved as well..in practice we cannot anticipate from where the executable
+data is collected so the library simply fill a structure that contains how many
+bytes and where are located, and return it to caller SK. It will be SK task to
+fill this structure with meaningful data.
+
+<div align=right><i><a href="#Top">[Top]</a></i></div>
+
+<hr WIDTH="100%">
+<h2><a NAME="Implementation"></a>3. Implementation</h2>
+&nbsp;&nbsp;&nbsp; Currently the Executable Loader library loads only ELF
+executables, but the library interface is designed in a way that abstracts from
+the actual executable file format, so adding or substituting the supported
+formats will be easy. 
+
+<h3><a NAME="Initialization"></a>3.1. Initialization</h3>
+<p>&nbsp;&nbsp;&nbsp; The first thing to do when dealing with Executable Loader
+library is to init it with <tt>KLexecInit</tt>. This methods tells to the library how
+much space allocate in order to keep track of loaded executable files. The
+argument is the maximum number of executable files loaded at a given time.
+<p><tt>PUBLIC BOOLEAN KLexecInit(INPUT UWORD32 numOfExecutables);</tt>
+
+<h3><a NAME="Opening"></a>3.2. Opening</h3>
+<p>&nbsp;&nbsp;&nbsp; Then, we can start the actual loading process with <tt>KLexecOpen</tt> method:
+<p><tt>PUBLIC EHandle KLexecOpen(ExecRecord *p);</tt>
+<p>The <tt>KLexecOpen</tt> return if successfull an handle, named here <i>executable handle</i>, that identify uniquely this transaction. Any other Executable Loader library call will use this handle as a parameter. 
+<p>&nbsp;&nbsp;&nbsp; As we have noted before, the Executable Loader library tells to caller how
+much data needs to be read and where. This is implemented through the
+<i>Executable Record</i> structure. After <tt>KLexecOpen</tt> completion, the
+structure is filled with the needed data that the library expect to be put as
+argument to the next function call. The definition of the structure is:<p>
+<tt>typedef struct {          /* Executable record. Tell caller what have to load */
+<br>&nbsp;&nbsp;&nbsp; UWORD32 position;
+<br>&nbsp;&nbsp;&nbsp; UWORD32 size;
+<br>&nbsp;&nbsp;&nbsp; UBYTE *buffer;
+<br>} ExecRecord;
+</tt>
+<p>The caller must put fetched executable data in the buffer pointed by
+<tt>buffer</tt>. The <tt>buffer</tt> field points to a buffer already allocated
+with the correct size and alignement by Executable Loader library, so caller
+need only to put data in it. Subsequently, we have to call several times <tt>KLexecLoad</tt> method.
+
+<h3><a NAME="Loading"></a>3.3. Loading</h3>
+<p>&nbsp;&nbsp;&nbsp; When caller is ready to load in memory the executable image, the <tt>KLexecLoad</tt> method must be called (again filling the executable
+record appropriately each run) until the <tt>LoadStatus</tt> is equal to <tt>EXEC_LOAD_FINISHED</tt>, or if you prefer, this method must be called anytime <tt>LoadStatus</tt> is equal to <tt>EXEC_LOAD_AGAIN</tt>. The prototype is:
+
+<p><tt>PUBLIC LoadStatus KLexecLoad(INPUT EHandle eId, ExecRecord *record);</tt>
+
+<p>This is a sample code for the method <tt>KLexecLoad</tt>, taken from the test module file LoaderTester.c:
+
+<p><tt>  loadState=KLexecLoad(handle, &record);
+<br>  while(loadState==EXEC_LOAD_AGAIN) {
+<br>&nbsp;&nbsp;&nbsp;  if(record.buffer!=NIL) {
+<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; if(fseek(myFd, record.position, SEEK_SET)==-1) {
+<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; break;
+<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; }
+<br>&nbsp;&nbsp;&nbsp; 
+<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; if(fread(record.buffer, record.size, 1, myFd)==0) {
+<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; break;
+<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; }
+<br>&nbsp;&nbsp;&nbsp; }
+<br>    }
+<br>
+<br>      loadState=KLexecLoad(handle, &record);
+<br>  }
+</tt>
+<p>In this example we have used standard C library disk I/O routines for the
+sake of simplicity, since in order to test library correctiness we must rely on
+the compiling machine facilities in the area: Alliance OS is not running!
+
+<h3><a NAME="Addresses"></a>3.4. Symbol addresses</h3>
+<p>&nbsp;&nbsp;&nbsp; Upon executable load completion, you need to fetch executable symbol addresses, so for instance you can call functions defined in the loaded executable or access some variables. This task is performed by the method <tt>KLexecSymbols</tt>:
+
+<p><tt>PUBLIC UWORD32 KLexecSymbols(INPUT EHandle eId, INPUT Esymbol symbol[], UBYTE *symbolAddr[]);</tt>
+
+<p>The argument <tt>Esymbol</tt> contains a null-terminated table of symbol names to be searched in the executable pointed by the executable handle. The type <tt>Esymbol</tt> is a structure defined this way:
+
+<p><tt>typedef struct {		/* Definition of a symbol in Exec library */
+<br>&nbsp;&nbsp;&nbsp; STRING name[MAX_SYMBOL_NAME+1];
+<br>&nbsp;&nbsp;&nbsp; SymbolType type;
+<br> } Esymbol;
+</tt>
+
+<p>The field <tt>name</tt> contains the ASCIIZ string of the symbol name to be
+searched in the executable. The field <tt>type</tt> contains the semantical
+meaning of that symbol, that is, if the symbol it is a function definition
+(<tt>EXEC_FUNC</tt>) or a variable declaration (<tt>EXEC_VAR</tt>). In this way we can avoid potential ambiguity in naming
+resolution and safely handle languages different from C (that may have different
+name mangling conventions).
+<p>The <tt>KLexecSymbols</tt> method returns in an array of <tt>BYTE *</tt> the addresses of the
+needed symbols. You can cast to the appropriate types the pointers and then you
+use them as any other C pointer. If a given symbol is not defined in the list,
+its pointer will be <tt>NIL</tt>. The method will return the number of symbols
+found in the executable.
+
+<h3><a NAME="Unloading"></a>3.5. Unloading</h3>
+<p>&nbsp;&nbsp;&nbsp; When an executable  is no longer needed in memory, it can
+be unloaded using <tt>KLexecClose</tt> method:
+
+<p><tt>PUBLIC BOOLEAN KLexecClose(INPUT EHandle eId);</tt>
+
+<p>After this method is called, the executable handle is no longer valid and may
+be reused by subsequent KLexecOpen call.
+<div align=right>&nbsp;&nbsp;&nbsp; <i><a href="#Top">[Top]</a></i></div>
+
+<hr WIDTH="100%">
+<h2> <a NAME="Document History"></a>4. Document history</h2>
+
+<table WIDTH="100%" >
+<tr VALIGN=TOP>
+<td><b><i>Release 1</i></b></td>
+
+<td>by Stefano Costa &lt;<a href="mailto:stefanocosta@netscape.net">stefanocosta@netscape.net</a>&gt;
+<br>01-Feb-2001
+<br>First release of library and spec document</td>
+</tr>
+</table>
+
+</body>

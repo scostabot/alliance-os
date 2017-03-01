@@ -1,0 +1,55 @@
+
+
+MIB Disk {
+	STRING Label[16] (RW);
+	STRING *ManufacturerAndModel="Pure minimalistic driver" (RO);
+	// La dimensione è libera scelta del driver, non dell'SK
+	
+	UWORD32 Heads NUMBER (RO);           // costanti per SK, assegnabili da LM
+	UWORD32 Cylinders NUMBER (RO);
+	UWORD32 Capacity MEGA BYTE (RO);
+};
+
+compilato risulta:
+
+1-Definizione struttura
+
+typedef struct {
+	STRING label[16];
+	STRING *ManufacturerAndModel="Pure minimalistic driver";
+	UWORD32 Heads;
+	UWORD32 Cylinders;
+	UWORD32 Capacity;
+} Disk;
+
+2-tabella di accesso
+
+[UWORD16]size MIB entry
+[
+
+
+
+MIB Serialport 
+	STRING ManufecturerAndModel[16] (RO);
+	UWORD32 CHOICE speed[1200, 2400, 9600] BIT PER SECONDS;
+	UBYTE StopBit[0-2] BITS (RW);
+	UBYTE CHOICE Parity["Odd", "Even", "None"];
+	STRING CHOICE FlowControl ["Xon/Xoff", "Hardware", "None"] (RW);
+};
+
+WORD32 range[-100,+100] (RW)	 
+	 
+p=malloc(sizeof(SerialPort))
+p->StopBit=2
+p->Parity=Odd;
+
+MIB <mibname> 
+    <type> <unit> <name> <range> [<accessqualifier>] ['=' <defaultValue>] <description>;
+    
+    
+LMinit
+LMprobe (ritorna MIB)
+
+
+
+    

@@ -1,0 +1,9 @@
+Second release
+	Uses typewrappers.h (according to the coding guidelines)
+	Source matches the tree described in the coding guidelines
+	README file does not reflect the sources, it is more like a TODO list
+
+First "release"
+	Able to deliver messages to a library implementation of an object.
+	The stubs and skeletons are wrote by hand.
+	Never really released (that's why the quotes)

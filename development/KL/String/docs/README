@@ -1,0 +1,23 @@
+Alliance String Library
+
+This is the first build of Alliance Extension Kernel String Library.
+All functions defined in this module can be called by the CK or any
+AKs.
+These functions are directly derived from standard C library equivalents:
+
+Alliance functions        Standard C library equivalent
+
+StringAppend              strcat
+StringCopy                strcpy
+StringNumCopy             strncmp
+StringCompare             strcmp
+StringMatch               strstr
+StringLength              strlen
+StringCompareNoCase       strcasecmp
+
+I have deliberatly chosen the generic implementation of these functions,
+in order to avoid any hardware-dependency problem.
+Later, we can optimize for speed using inline assembly, but now the focus
+is on function presence instead of performance.
+
+Stefano Costa

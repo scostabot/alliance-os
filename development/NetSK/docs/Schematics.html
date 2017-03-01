@@ -1,0 +1,45 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2 Final//EN">
+<html>
+<head>
+<title>Alliance NetSK first schematics</title>
+</head>
+<body>
+<h2>Alliance NetSK working diagrams proposal:</h2>
+
+<h3>Introduction</h3>
+While the NetSK objectives are being discussed, it seems to be evident that the relationships with other SKs are very important.
+<BR>
+The first SK that I want to talk about is the IOSK, as it will handle a big part of the networking job: transmiting and receiving data thru devices.
+<P>
+<b>The NetSK - IOSK interaction:</b><BR>
+
+Here, in the first image, we can see a general diagram which shows an application that wants to send some data.<BR>
+The application has to request the operation to the NetSK, which in turn relays in the IOSK to send the data to the selected media.
+<BR>
+<img src="img1.gif" width=590 height=141 border="0">
+<P>
+Ok, let´s see more precisely what happens.<BR>
+In this figure we can see the IOSK. This SK is responsible to handle all I/O in the AllianceOS, and thus should handle all the communication device drivers.<BR>
+<img src="img2.gif" width=479 height=221 border="0">
+<P>
+The device driver should:<BR>
+	- Configure the device if necesarry<BR>
+	- transmit data<BR>
+	- Receive data through forcing an interrupt<BR>
+The data is handled by the IOSK in input and output operations.
+<P>
+For a transmission, the NetSK passes the data to the IOSK and the IOSK should then send it.<BR>
+For a reception, the IOSK takes the data and passes it to the NetSK as soon as possible.<BR>
+<img src="img3.gif" width=439 height=222 border="0">
+<P>
+This, while maintaining the modularity of the system, increases the system load because of the intervention of the IOSK. Suggestions for this are needed.
+<P>
+The incoming data, when passed to the NetSK comes into the pertinent family packet manager. This manager will then demux the packet to the appropriate protocol.<BR>
+<img src="img4.gif" width=321 height=148 border="0">
+<P>
+Here are some little ideas which may sound very obvious (I feel a little stupid with this topic :-)).<BR>
+Comments are expected.
+<HR>
+
+</body>
+</html>

@@ -1,0 +1,173 @@
+The Alliance Protected-Mode Boot Loader (DOS)
+Version 0.1a
+By Ramon van Handel <vhandel@chem.vu.nl>
+(C) 1998 The Alliance Operating System Team
+
+1.  What does this program do ?
+
+	The Alliance DOS bootloader's job is to load a statically-linked,
+	fixed-text address ELF kernel which conforms to the multiboot
+	standard.  No relocation is done by the loader.
+	The Alliance DOS bootloader was mainly developed as a developemt
+	tool for developing the Alliance Cache Kernel (CK).  It is
+	possible, though, that it will later be rewritten into a full 
+	bootloader which works from the master boot record (MBR).
+
+2. What steps are preformed by the loader, and what is the system state
+   after control transferred to the kernel ?
+
+	The loader preforms the following steps (very global):
+
+	* Check for presence of 386, and whether it isn't in
+	  protected-mode already
+	* Enable the A20 gate
+	* Switch to 'unreal'-mode (big real mode)
+	* Count the memory and store it in the multiboot_info struct
+	* Load the ELF kernel one section at a time, using the information
+	  in the ELF program header table (PHT) to determine the
+	  destination memory address
+	* Patch and load the GDT and then switch to protected-mode
+	* Store the multiboot magic number in eax, and the address of the
+	  multiboot_info struct in ebx like required by the multiboot
+	  standard
+	* Call the kernel entry point
+	* The kernel isn't supposed to return. If it were to return, halt
+	  the computer (but probably by that time the memory will be
+	  clobbered up anyway)
+
+	The code is very well documented (IMO), so it shouldn't be too
+	hard to figure out what it is trying to do.
+
+	The loader leaves the system in a state like is required by the
+	multiboot standard (no paging, no stack, flat segments etc.)  For
+	details please see the copy of the multiboot standard which is
+	included (see the file multiboot.txt).
+
+3. What is all this multiboot stuff about ?
+
+	The multiboot-standard is a standard that was made to standardise
+	the way operating systems are loaded.  Until now, almost every
+	kernel used a different format and thus required its own
+	bootloader.  This makes it hard to create a bootloader that can
+	load multiple operating systems.  If all operating systems were
+	to support multiboot then bootloaders would be much more
+	universal.  I do not know of any popular OS that uses multiboot
+	at the moment, but Alliance, the OS for which the loader was
+	written, is going to be multiboot.  The loader only supports
+	multiboot-compatible ELF files (a.out files are outdated and
+	clumsy to use, so I don't support them.)  More information about
+	the multiboot standard can be found in the official standard
+	document included (see: multiboot.txt).
+
+4. How do I build the loader ?
+
+	The loader was made with NASM 0.97.  The demo code was made using
+        linux GCC which generates ELF code (older a.out compilers won't
+        work !)  So you'll need linux, ELF GCC, NASM 0.97 for linux and
+        GNU Make to be able to compile everything. 
+
+	To build the loader from the source you first have the edit the
+	file Makefile so it can find NASM.  Open the file Makefile in your
+	favorite editor, and locate this line:
+
+		NASM = /usr/bin/nasm
+
+	Now change '/usr/bin/nasm' to the location where you have put
+	NASM (or you can simply use 'nasm' if it is in your path.)  You 
+        might also need to change the path to gcc in test/Makefile.  Now
+	you are ready to build.  Simply type:
+
+		make
+
+	and wait until make has finished building everything.  You
+	should now have a file called loader.com and a file called
+        test.elf in the current directory.  These are the DOS loader
+	executable and the test kernel.
+
+5. So how do I test my loader ?
+
+	I have provided a simple ELF kernel to test the loader.  The
+	kernel is called test.elf.  You can find the source in the
+        directory test/.  This is also a small example of how you should
+        compile a kernel.  To test the kernel, put loader.com and
+	test.elf in one directory in your DOS filesystem.  By now you will
+	probably need to reboot, even if you were in DOS already, because
+	you need to start DOS _without_ any memory manager (HIMEM.SYS,
+	EMM386.EXE, QEMM, 386MAX etc.)  The loader will not work with a
+	memory manager.  To skip your config.sys (in which these drivers
+	are loaded,) you can press 'F5' during boot in DOS 6.22.  In
+	Windows 95, you can press 'F8' during boot and then select the
+	option 'Start DOS in safe mode'.
+	Once you have come this far, go to the directory where the loader
+	and the kernel are, and type: 
+
+		loader
+
+	The kernel will now boot, and you will see some text on the
+	screen. If you do, then the loader works.
+
+6. What do I have to keep in mind when writing my own kernel for the loader ?
+
+	Three things:
+
+	* Comply to the multiboot standard.  The loader tries to pass
+	  information on to the kernel using a specific convention, about
+	  which you can read in the multiboot standard (multiboot.txt).
+	  You do not _have_ to use this information, but do keep in mind
+	  it is not passed on to the kernel using the C calling convention:
+	  So make sure that if you're programming in C, you tell C not to
+	  take any parameters in the startup function !  If you do, C will
+	  attempt to pop the parameters off the stack, which will surely
+	  cause an exception, because according to the multiboot standard
+	  the loader doesn't set up a stack. This will cause the processor
+	  to reboot, because the IDT is also not set, which causes a
+	  triple-fault on exceptions/interrupts.  So the entry point
+	  should be defined as:
+
+		void _start(void) { ...
+
+	* Compile the kernel 
+		1) as ELF, 
+		2) Statically, and 
+		3) with fixed text address.
+	  If you are using Linux GCC for the kernel, you probably don't
+	  have to worry about point 1.  Point 2 shouldn't be a problem, as
+	  usually when compiling a kernel no libraries are used (or only
+	  custom ones which will be static anyway, like the OSkit.)  In
+	  GCC, point 3 can be done like this while linking:
+
+		ld -Ttext 100000 <other_options>
+
+	  This will fix the text address at 1M.  You can take a higher
+	  address (eventhough I do not quite see the point,) but not one
+	  under 1M (as you will be disturbing the BIOS.)  
+
+	* Change the kernel filename in the loader source and rebuild.
+	  To do this, open loader.asm in your favorite editor and find
+	  this line in the source:
+
+		kernel_fname    db 'test.elf',0
+	
+	  You can change test.elf to your filename.  Don't forget to
+	  rebuild the loader using make !!!
+
+7. Is the loader finished ?
+
+	No, this is only an alpha version.  If you want to help out on all
+	the things that still need to be done in the loader, open the
+	loader source (loader.asm) and take a look at the 'to do'
+	section.  It'll say some things that still need to be done.
+
+8. Contacting the author
+
+	The loader was written by Ramon van Handel.  You can contact me at
+	the following email address:
+
+		vhandel@chem.vu.nl
+
+	Please send me any bug reports/fixes/updates/requests/other !!!
+
+9. Copyright
+
+	The loader is distributed under the terms of the GNU Public
+	License (GPL.)  They can be found in the file COPYING.

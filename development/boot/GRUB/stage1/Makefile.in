@@ -1,0 +1,23 @@
+############################################################################
+#  GRUB stage1 makefile
+#
+
+CC=@CC@
+CFLAGS= $(SHARED_FLAGS)
+OBJCOPY=@OBJCOPY@
+LD=@LD@
+RM=@RM@
+
+all: ../binaries/stage1
+
+../objects/stage1.o:	stage1.S Makefile ../Makefile
+	$(CC) $(CFLAGS) -c -o ../objects/stage1.o stage1.S
+
+../objects/stage1.elf:	../objects/stage1.o Makefile ../Makefile
+	$(LD) -N -Ttext 7C00 -o ../objects/stage1.elf ../objects/stage1.o
+
+../binaries/stage1:	../objects/stage1.elf Makefile ../Makefile
+	$(OBJCOPY) -O binary ../objects/stage1.elf ../binaries/stage1
+
+clean:
+	$(RM) ../objects/stage1.o ../objects/stage1.elf

@@ -1,0 +1,93 @@
+module Alliance
+{
+  interface IOSK
+  {
+    typedef unsigned long long Caller; //This is just to make it a valid type.
+                                       //This needs to be a real thread handle,
+				       //prefixed with a machine id (e.g. IP)
+
+    typedef unsigned long Session;      //unsigned long is a 32 bit value
+    typedef unsigned long long Address; //this one is a 64 bit value
+    typedef sequence<octet> bytes;      //this one can be as long as we need
+    typedef sequence<string> strings;
+
+    enum SeekDir { Begin, End, Forward, Back };
+                    //Begin causes a forward seek from the beginning
+                    //End causes a reverse seek from the end
+                    //Forward causes a forward seek from the current position
+		    //Back causes a backward seek from the current position
+
+    enum Permission { RW, RO, WO, UNDEF};
+                    //Open allows anything to access the session
+                    //Closed allows access only from the same thread.
+	            //LockLevel is obsolete, lock function has a new purpose
+
+    exception BadDevice { string desc; };
+                              //The string does not identify a valid device.
+
+    exception BadHandle { string desc; };
+                              //The handle does not identify a valid session,
+                              //or the handle identifies a session which
+                              //cannot be accessed.
+
+    exception BadAddress { string desc; };
+                              //The address specifies something beyond the
+                              //bounds of the address space of the session.
+
+    exception BadRead { string desc; };
+                              //The read failed. desc will tell why.
+
+    exception BadWrite { string desc; };
+                              //The write failed. desc will tell why.
+
+    Session openSession(in string device, in Permission permission)
+      raises (BadDevice);
+                              //Opens a session on a single device, with
+                              //the specified permission on its entire
+                              //address space.
+                              //openMultiSession is not needed. Instead
+      			      //we'll use multiplexing drivers.
+
+    void closeSession(in Session id)
+      raises (BadHandle);
+                              //Closes the specified session, freeing any
+                              //locks which it owns and possibly unloading
+                              //the LMs which were needed to service it.
+
+    bytes read(in Session id, inout unsigned long length, in boolean block)
+      raises (BadHandle, BadRead);
+                              //Reads up to 'length' bytes from the given
+                              //session. If block is true, waits in the
+                              //method until 'length' bytes have been read
+                              //or the end of the session's data is reached.
+                              //If block is false, immediately returns as
+                              //much data, up to 'length', as is available.
+
+    void write(in Session id, in bytes buffer)
+      raises (BadHandle, BadWrite);
+                              //Writes 'buffer' into the session.
+
+    oneway void writeAsync(in Session id, in bytes buffer);
+                              //Returns immediately, the write happens
+                              //while the next instructions are being
+                              //executed
+
+    void readSeek(in Session id, in Address where, in SeekDir dir)
+      raises (BadHandle, BadAddress);
+                              //Changes the position of the read pointer.
+                              //If called on a char device, with
+                              // dir == Forward, it skips
+                              //over the next 'where' bytes. Any other
+                              //dir on a char device will raise a BadHandle.
+
+    void writeSeek(in Session id, in Address where, in SeekDir dir)
+      raises (BadHandle, BadAddress);
+                              //Changes the position of the write pointer.
+                              //If called on a char device, raises a
+                              //BadHandle.
+
+    void lock(in Session id, in Permission permission)
+      raises (BadHandle, BadAddress);
+                              //Changes the permission policy of the session
+  };
+};

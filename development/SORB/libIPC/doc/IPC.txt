@@ -1,0 +1,73 @@
+From - Sun Nov 22 14:16:05 1998
+Received: from tinet0.redestb.es by gold.chem.vu.nl (5.64/AUX-3.1.1)
+	id AA25040; Thu, 19 Nov 98 18:57:25 MET
+Received: from fclients0.redestb.es ([194.179.106.116])
+          by tinet0.redestb.es (Post.Office MTA v3.1 release PO203a
+          ID# 0-0U10L2S100) with ESMTP id AAA175 for <vhandel@chem.vu.nl>;
+          Thu, 19 Nov 1998 18:56:53 +0100
+Received: from redestb.es ([195.122.197.209]) by fclients0.redestb.es
+          (Post.Office MTA v3.1.2 release (PO205-101c) ID# 0-0U10L2S100)
+          with ESMTP id AAA207 for <vhandel@chem.vu.nl>;
+          Thu, 19 Nov 1998 19:04:01 +0100
+Message-Id: <36545953.11F9BA75@redestb.es>
+Date: Thu, 19 Nov 1998 18:45:55 +0100
+X-UIDL: 911555781.002
+From: Luc elDe laRed <luc@redestb.es>
+X-Mailer: Mozilla 4.03 [es] (Win95; I)
+Mime-Version: 1.0
+To: Ramon van Handel <vhandel@chem.vu.nl>
+Subject: IPC code
+Content-Type: multipart/mixed; boundary="------------AC3EB58F347EFF25E0CE920E"
+Status: RO
+X-Mozilla-Status: 0001
+Content-Length: 48411
+
+Este es un mensaje multipartes en formato MIME.
+--------------AC3EB58F347EFF25E0CE920E
+Content-Type: text/plain; charset=us-ascii
+Content-Transfer-Encoding: 7bit
+
+Hello!
+    Some proffesors have not came to university today, so I had some
+time for looking into that IPC code.
+I have made several changes, and now it works (more or less) on the four
+possible scenarios for sending and receiveing (Sync-Sync, Async-Async,
+Async-Sync and Sync-Async).
+    For asyncronous communication I have introduced a syncronization
+message (which, obviously is sent in syncronous mode), to ensure that
+the receiver is running before sending async messages.
+
+    The buffering scheme is not very good, theer must be something wrong
+with it, as it crashes (well, blocks doing nothing, more often) when
+sending a lot of asyncoronous messages (more than 100). It works for
+small burst, though.
+
+    In the current implementation I have troubles sending many
+messages... the program blocks after having received 9212 messages (the
+incrmental numbers you will se in screen is the number of messages
+received)
+
+    Now exec1 forks and calls an executable passed in the first argument
+(which will be the receiver of messages). The third parameter is
+optional and allows you to specify which file will be sent to the
+receiver (char-by-char, terminated with '!'... I know the termination
+char is stupid, but I was working in other things...)
+    Try exec1 exec2 file, and tell me if it also blocks at 9212 for you.
+
+    I think all SysV IPC resources are correctly freed (on normal
+termination), but I'm not sure. It is a problem when the program crashes
+(or has to be finished) and does not free the resources, still.
+
+    More things i've done... solved some problems with ipcBufferDone,
+which also know returns more descriptive error codes.
+
+    I think that there is some IPC allocation that is not checked... I
+guess that's why sometimes a segmentation fault arises...
+
+    I, of course, send you the new code tree.
+--
+* Luc elDe laRed (alias Mosquetero)    mailto:luc@redestb.es
+* http://www.redestb.es/personal/luc/
+* Alliance Kernel Team Assistant-Lead
+
+

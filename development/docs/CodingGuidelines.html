@@ -1,0 +1,719 @@
+<HTML>
+<HEAD>
+   <META HTTP-EQUIV="Content-Type" CONTENT="text/html; charset=iso-8859-1">
+   <META NAME="Author" CONTENT="Kernel Team">
+   <META NAME="Classification" CONTENT="Drafts">
+   <META NAME="Description" CONTENT="Description of the Alliance coding rules.">
+   <META NAME="KeyWords" CONTENT="Alliance coding style, Alliance Specs,AllianceKernel,  Kernel, Alliance, Specs, Draft">
+   <TITLE>Alliance Development Coding Guidelines Release 1.5</TITLE>
+</HEAD>
+<BODY>
+<font COLOR="Black" SIZE="3" FACE="Arial, Helvetica">
+
+<CENTER>
+<H1><a NAME="Top"></a>Alliance Development Coding Guidelines Release 1.5</H1>
+
+<i>Stefano Costa &lt;<A HREF="mailto://stefanocosta@netscape.net">stefanocosta@netscape.net</A>><BR>
+Daniel Arbuckle &lt;<A HREF="mailto://djarb@wvc-omak.ctc.edu">djarb@wvc-omak.ctc.edu</A>><BR>
+Rudy Gingles &lt;<A HREF="mailto://spy@oregoncoast.com">spy@oregoncoast.com</A>><BR>
+Ramon van Handel &lt;<A HREF="mailto://vhandel@chem.vu.nl">vhandel@chem.vu.nl</A>><BR>
+Abel Muino &lt;<A HREF="mailto://luc@redestb.es">luc@redestb.es</A>><BR>
+Chris Trawick &lt;<A HREF="mailto://ctrawick@ix.netcom.com">ctrawick@ix.netcom.com</A>>
+</i></CENTER>
+<hr>
+
+<H3>
+Index</H3>
+1. <A HREF="#Abstract">Abstract</A>
+<BR>2. <A HREF="#Introduction">Introduction</A>
+<BR>3. <A HREF="#How to read this document">How to read the dcument</A>
+<BR>4.<A HREF="#Environment setting"> Environment setting</A>
+<BLOCKQUOTE>4.1. <A HREF="#Release numbering and policies">Release numbering
+and policies</A>
+<BR>4.2. <A HREF="#Files and directories organization">Files and directories
+organization</A>
+<BR>4.3. <A HREF="#Development tools">Development tools</A>
+<BR>4.4. <A HREF="#Makefiles">Makefiles</A></BLOCKQUOTE>
+5. <A HREF="#File layout">File layout</A>
+<BLOCKQUOTE>5.1. <A HREF="#Comments">Comments</A>
+<BR>5.2 <A HREF="#File headers">File headers</A></BLOCKQUOTE>
+6. <A HREF="#Formatting">Formatting</A>
+<BLOCKQUOTE>6.1. <A HREF="#Indentation">Indentation</A>
+<BR>6.2. <A HREF="#Placing braces">Placing braces</A></BLOCKQUOTE>
+7. <A HREF="#Data declaration">Data declaration</A>
+<BLOCKQUOTE>7.1. <A HREF="#Use of integral types">Use of integral types</A>
+<BR>7.2. <A HREF="#Multiple declarations">Multiple declarations</A>
+<BR>7.3. <A HREF="#Variable names">Variable names</A>
+<BR>7.4. <A HREF="#Structures">Structures</A>
+<BR>7.5. <A HREF="#Type modifiers">Type modifiers</A>
+<BR>7.6. <A HREF="#Variable initialization">Variable initialization</A>
+<BR>7.7. <A HREF="#Global variables">Global variables</A></BLOCKQUOTE>
+8. <A HREF="#Function definitions">Function definition</A>
+<BLOCKQUOTE>8.1. <A HREF="#Function names">Function names</A>
+<BR>8.2. <A HREF="#Spacing">Spacing</A>
+<BR>8.3. <A HREF="#Function headers">Function headers</A>
+<BR>8.4. <A HREF="#Function declaration">Function declarations</A></BLOCKQUOTE>
+9. <A HREF="#C case constructs">C case constructs</A>
+<BLOCKQUOTE>9.1. <A HREF="#Presence of default: statement">Presence of
+default: statement</A>
+<BR>9.2. <A HREF="#Macros">Macros</A></BLOCKQUOTE>
+10. <A HREF="#Run time consideration">Run-time considerations</A>
+<BR>11. <A HREF="#Standards issue">Standard issues</A>
+<BR>12. <A HREF="#History">History</A>
+<div align=right><i><a href="#Top">[Top]</a></i></div>
+
+<hr WIDTH="100%">
+<H3>
+<A NAME="Abstract"></A>1. Abstract</H3>
+Scope of this document is clearly explain the design phylosophy of the
+development effort, and the rules that naturally follows the development
+of the Alliance Operating System.
+<BR>This document is written to guide Alliance Kernel Development, but
+it is generic enough to be applicable to other Alliance components as well.
+<div align=right><i><a href="#Top">[Top]</a></i></div>
+
+<hr WIDTH="100%">
+<H3>
+<A NAME="Introduction"></A>2. Introduction</H3>
+This document has many authors. The core is taken from "Recommend C Style
+and Coding Standards" (you can download your copy from <A HREF="http://dogbert.comsc.ucok.edu/~mccann/cstyle.ps">http://dogbert.comsc.ucok.edu/~mccann/cstyle.ps</A>)
+which itself has eleven authors listed.
+<BR>Several things were added by the main author and mantainer of this
+document (Stefano Costa) and from the Alliance Kernel Development Team
+members.
+<div align=right><i><a href="#Top">[Top]</a></i></div>
+
+<hr WIDTH="100%">
+<H3>
+<A NAME="How to read this document"></A>3. How to read this document</H3>
+These guidelines are structured as a set of chapters and paragraphs that
+describes various entities involved in coding effort.
+<BR>Rules are written as imperative statements, short and effective.
+<BR>Whenever your specific coding problem does not fit in one of points
+enumerated here, try to catch the project phylosophy: keep it&nbsp; simple.
+<BR>Read and learn this document BEFORE coding. Don't say "I'll make my
+source compliant after it is working", because after that step, is 99%
+like that you don't change ever a comma.
+<BR>Also, please note that rules are not and cannot be absolute. Sometime,
+breaking a rule is more convenient than a stupid quiescent behaviour. If
+you think three times and still find that a non-compliant approach objectevely
+gains something, you can get rid of the rule. Keep in mind that your ability
+to program is proportionally inverse to the number of exceptions you put
+in the code.
+<div align=right><i><a href="#Top">[Top]</a></i></div>
+
+<hr WIDTH="100%">
+<H3>
+<A NAME="Environment setting"></A>4. Environment setting</H3>
+
+<H3>
+<A NAME="Release numbering and policies"></A>4.1. Release numbering and
+policies</H3>
+For Alliance Project, there are two different release categories: internal
+and public. Internal releases are maintained and visible only within development
+groups. Public releases are those internal releases stable enough to be
+distributed to normal users.
+<BR>In either case, release numbering starts from 1, and after each release,
+it is incremented by one. Internal and public releases have indipendent
+relase numbers, so if after three internal relases is distributed a public
+one, these are all versions: Internal Release 1, Internal Release 2, Internal
+Release 3 and Public Release 1.
+<BR>Release transition from internal to public is based on personal&nbsp;
+programmer responsability. Each programmer notify to his Lead that his
+feature is stable enough to become part of a Public Release. After all
+integration issues (tests between various features and the like) are closed,
+that release become public.
+<BR>After a certain level of OS maturation is reached, a beta tester program
+will be started, with input from a non-developer perspective.
+<BR>Sources are released under <a href="gpl.html">GPL (GNU Public License)</a>.
+<H3>
+<A NAME="Files and directories organization"></A>4.2. Files and directories
+organization</H3>
+Maximize functional organization when creating source files and directory
+trees.
+<BR>Try to keep all procedures/functions that belongs to a unique functionality
+all in a single file, or whenever the single functionality is large enough
+to be sensibly splitted in several sub-units, put all files (one for each
+sub-unit) in a single directory.
+<BR>Use non-ambiguos file and directory names. Don't limit to 8.3 length,
+this is an heritage that is no longer important. Our coding platform is
+a Unix box, and we can safely assume filenames up to 64 characters long.
+
+<P>This is the basic skeleton for development directory tree:
+
+<P><TT>/alliance&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+(Alliance OS root directory)</TT>
+<BR><TT>/alliance/development&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+(Alliance development code mainline)</TT>
+<BR><TT>/alliance/development/bootloader&nbsp; (Code needed to load &amp;
+init at boot)</TT>
+<BR><TT>/alliance/development/include&nbsp;&nbsp;&nbsp;&nbsp; (Kernel-wide
+include directory)</TT>
+<BR><TT>/alliance/development/AK&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+(Various AKs are subdirs of this one)</TT>
+<BR><TT>/alliance/development/CK&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+(Cache Kernel code)</TT>
+<BR><TT>/alliance/development/IOSK&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+(I/O System Kernel code)</TT>
+<BR><TT>/alliance/development/FSSK&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+(Various Filesystems SK are subdirs)</TT>
+<BR><TT>/alliance/development/GrSK&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+(Graphics Systems Kernel code)</TT>
+<BR><TT>/alliance/development/LM&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+(Loadable Modules library code)</TT>
+<BR><TT>/alliance/development/NetSK&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+(Networking Systems Kernel code)</TT>
+<BR><TT>/alliance/development/SORB&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+(CORBA stuff repository)</TT>
+<BR><TT>/alliance/development/include&nbsp;&nbsp;&nbsp;&nbsp;
+(System-wide includes)</TT>
+<BR><TT>/alliance/research&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+(Alliance OS research projects)</TT>
+
+<P>Each Alliance functional module has a directory under <TT>/development</TT>.
+<BR>Each functional module (excluding the system-wide include
+directory <TT>/include</TT>) that generates or use the file types below, must put 
+them in the defined subdirectories:
+
+<P><TT>/objects&nbsp;&nbsp; where are stored object file generated by source
+compilation</TT>
+<BR><TT>/include&nbsp;&nbsp; where include files LOCALLY used by the module
+being compiled</TT>
+<BR><TT>/docs&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; contains all documentation
+relative to that module</TT>
+<BR><TT>/scripts&nbsp;&nbsp; contain compilation/generation scripts</TT>
+<BR><TT>/binaries&nbsp; contains the final output modules (executable and/or
+library)</TT>
+
+<P>Of course, functional modules may have sub-modules inside: the above
+may be applied recursevely.
+<BR>In all cases when the above directories contents are function of a particular
+HW/SW architecture, use the subdirectory <TT>/architecture</TT>, followed
+by architecture name. So if the object files produced by a compilation process are 
+specific to a target, the resulting directory will be <TT>/objects/architecture/<arch></TT>.
+The text of supported architectures is fixed and defined during configuration, see
+<a href="Build.html">Alliance OS Build Guide</a>.
+
+<P>When a Public Release is generated, the source layout change to:
+
+<P><TT>/alliance</TT>
+<BR><TT>/alliance/sources</TT>
+<BR><TT>/alliance/sources/include</TT>
+<BR><TT>/alliance/sources/docs</TT>
+<BR><TT>/alliance/sources/docs/AK</TT>
+<BR><TT>/alliance/sources/docs/CK</TT>
+<BR><TT>/alliance/sources/docs/LM</TT>
+
+<P>...as many as system objects
+
+<P><TT>/alliance/sources/AK</TT>
+<BR><TT>/alliance/sources/CK</TT>
+<BR><TT>/alliance/sources/LM</TT>
+
+<P>...as many as system objects
+
+<P>In this way on the same machine can coexist a stable baseline and an
+alfa
+<BR>one, allowing easier development. note that the documentation files
+are
+<BR>collated under one directory tree, in order to allow to archive it
+in one
+<BR>file for user convenience. The rest of the directory tree is unchanged.
+<BR>So, possible subtrees for Public Release sources are /objects, /include,
+<BR>/binaries and /scripts.
+<H3>
+<A NAME="Development tools"></A>4.3. Development tools</H3>
+Alliance is compiled using GNU gcc, debugged with gdb, and built using
+gmake. Assembly modules are compiled with NASM.
+<BR>Alliance will be coded in C, and C++ extension are explicitely forbidden.
+Only ANSI C extensions are allowed.
+<BR>To enforce the layout described in the following paragraphs, GNU indent
+will be used to post process sources before official
+<BR>release. Standard editors configuration will be released in order to
+provide useful developmet tools compliant to these guidelines.
+<H3>
+<A NAME="Makefiles"></A>4.4. Makefiles</H3>
+Name make files Makefile and not makefile.
+
+<P>Rationale: we can use GNU tools like configure.
+<div align=right><i><a href="#Top">[Top]</a></i></div>
+
+<hr WIDTH="100%">
+<H3>
+<A NAME="File layout"></A>5. File layout</H3>
+In a source file there must be present, in this order, the file header
+(1.2), #include directives, then global variables (3.1), then,
+<BR>if any, function declarations (4. and following).
+<H3>
+<A NAME="Comments"></A>5.1. Comments</H3>
+Comments for C files must be formatted this way:
+
+<P><TT>/*</TT>
+<BR><TT>&nbsp;* This is a valid comment.</TT>
+<BR><TT>&nbsp;*/</TT>
+
+<P>Rationale: a grep '^.\*' will catch all comments in a file.
+
+<P>If comments are one-line long, use <TT>/* This is a valid comment */</TT>.
+<BR>The one-line comment keyword '//' is explicitely forbidden because
+is a C++ keyword, not a valid C one.
+<BR>Don't economize on comments. It's much better to say more than less:
+in the first case you discard things mentally, in the second you have to
+guess (and usually your guess is wrong).
+<H3>
+<A NAME="File headers"></A>5.2. File headers</H3>
+In the C file headers, you must put the following:
+
+<P><TT>/*</TT>
+<BR><TT>&nbsp;* &lt;One-line functional unit description></TT>
+<BR><TT>&nbsp;*</TT>
+<BR><TT>&nbsp;* &lt;High level description of the functions implemented
+in this file></TT>
+<BR><TT>&nbsp;*</TT>
+<BR><TT>&nbsp;* HISTORY</TT>
+<BR><TT>&nbsp;* Date&nbsp;&nbsp;&nbsp;&nbsp; Author&nbsp;&nbsp;&nbsp; Rev&nbsp;&nbsp;&nbsp;
+Notes</TT>
+<BR><TT>&nbsp;*</TT>
+<BR><TT>&nbsp;* This program is free software; you can redistribute it
+and/or modify</TT>
+<BR><TT>&nbsp;* it under the terms of the GNU General Public License as
+published by</TT>
+<BR><TT>&nbsp;* the Free Software Foundation.</TT>
+<BR><TT>&nbsp;* This program is distributed but WITHOUT ANY WARRANTY; without
+even the</TT>
+<BR><TT>&nbsp;* implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
+PURPOSE.</TT>
+<BR><TT>&nbsp;* See the GNU General Public License for more details.</TT>
+<BR><TT>&nbsp;*/</TT>
+
+<P>In an assembly file header, you must put the following:
+
+<P><TT>;</TT>
+<BR><TT>; &lt;One-line functional unit description></TT>
+<BR><TT>;</TT>
+<BR><TT>; &lt;High level description of the functions implemented in this
+file></TT>
+<BR><TT>;</TT>
+<BR><TT>; HISTORY</TT>
+<BR><TT>; Date&nbsp;&nbsp;&nbsp;&nbsp; Author&nbsp;&nbsp;&nbsp; Rev&nbsp;&nbsp;&nbsp;
+Notes</TT>
+<BR><TT>;</TT>
+<BR><TT>; This program is free software; you can redistribute it and/or
+modify</TT>
+<BR><TT>; it under the terms of the GNU General Public License as published
+by</TT>
+<BR><TT>; the Free Software Foundation.</TT>
+<BR><TT>; This program is distributed but WITHOUT ANY WARRANTY; without
+even the</TT>
+<BR><TT>; implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
+PURPOSE.</TT>
+<BR><TT>; See the GNU General Public License for more details.</TT>
+<BR><TT>;</TT>
+<BR>
+<div align=right><i><a href="#Top">[Top]</a></i></div>
+
+<hr WIDTH="100%">
+<H3>
+<A NAME="Formatting"></A>6. Formatting</H3>
+
+<H3>
+<A NAME="Indentation"></A>6.1. Indentation</H3>
+In C listings, use 4-space indentation for program blocks. Try to avoid
+more than four nesting levels.
+
+<P>Rationale: no rationale here, only a religious issue :).
+
+<P>Don't use TABs, but spaces. In this way we bypass terminal woes for
+TAB support &amp; handling. The extra bytes used are nowadays negligible.
+<BR>Line length is limited to 80 chars, in any circumstance. Wrapping is
+not allowed.
+<H3>
+<A NAME="Placing braces"></A>6.2. Placing braces</H3>
+Inside a for, while, do, switch, if/else block format the program block
+the following way:
+
+<P><TT>&nbsp; if(x is true) {</TT>
+<BR><TT>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; we do y;</TT>
+<BR><TT>&nbsp; }</TT>
+
+<P>Rationale: again a religious issue, the same as K&amp;R and Linux.
+<div align=right><i><a href="#Top">[Top]</a></i></div>
+
+<hr WIDTH="100%">
+<H3>
+<A NAME="Data declaration"></A>7. Data declaration</H3>
+
+<H3>
+<A NAME="Use of integral types"></A>7.1. Use of integral types</H3>
+Use type wrappers instaed of integral types, eg.:
+
+<P><TT>WORD16 i;</TT>
+
+<P>instead of
+
+<P><TT>int i;</TT>
+
+<P>There are two distinct classes of type wrappers. One, modelled to define
+precisely kernel variables, or low-level entities that are close to CPU
+architecture. The other one is for generic user process or higher level
+software in general.
+<BR>Defined kernel wrappers are:
+
+<P><TT>BYTE</TT>, <TT>WORD16</TT>, <TT>WORD32</TT>, .... (in general <TT>WORDxx
+</TT>where xx=number of bits)
+
+<P>and their unsigned counterparts <TT>UBYTE</TT>, <TT>UWORD16</TT>, <TT>UWORD32</TT>.
+<BR>The higher level type wrappers are:
+
+<P><TT>BYTE</TT>, <TT>INT16</TT>, <TT>INT32</TT>, ... (in general <TT>INTxx</TT>
+where xx is the size in bits
+<BR>of the integer type) and unsigned counterparts <TT>UBYTE</TT>, <TT>UINT16</TT>,
+<TT>UINT32</TT>.
+<BR>Common to both categories are:
+
+<P><TT>BOOLEAN</TT> a type that holds only <TT>TRUE</TT> or <TT>FALSE</TT>
+as values
+<BR><TT>VOID</TT>&nbsp;&nbsp;&nbsp; the void type
+
+<P>Those definitions will be contained in a single .h file, included by
+any other include file. These definitions are typedefs, and must be uppercase.
+<BR>All other types are formatted with the following naming convention:
+
+<P><TT>typedefs INT16 ThisIsAType;</TT>
+
+<P>That is, All first letter in a word is uppercase.
+
+<P>Rationale: type wrappers greatly enhance code portability/extensions
+to new HW platforms. The typedef naming convetion increase readability.
+<BR>When you use for a class of functions a particular type for a single
+purpose, redefine it with a typedef, even if it's not integral:
+
+<P><TT>typedef INT32 Identifier;</TT>
+
+<P>in this way it's easier to understand the role of the variable and also
+minimize changes if a structure will be necessary to
+<BR>implement a new feature.
+<H3>
+<A NAME="Multiple declarations"></A>7.2. Multiple declarations</H3>
+When you define more than one variable of the same type, put it in a different
+row:
+
+<P><TT>INT32 i,</TT>
+<BR><TT>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; j;</TT>
+<BR>&nbsp;
+<H3>
+<A NAME="Variable names"></A>7.3. Variable names</H3>
+If the variable name is a composite one, the first letter is always lowercase,
+then use uppercase to mark division between word in a variable name:
+
+<P><TT>&nbsp; formattingOption</TT>
+<BR><TT>&nbsp; tempValue</TT>
+
+<P>Never use '_' character to divide words between the name.
+<BR>Self limit variable name length to 16 characters (not an hard limit:
+if ambiguities arises, name it longer).
+<BR>Do NOT use hungarian notation.
+<BR>Try to be as descriptive as possible with the variable name.
+
+<P>Rationale: improve readability and avoiding excessive line length.
+<H3>
+<A NAME="Structures"></A>7.4. Structures</H3>
+Name each structure field in one line. On the right of filed name, put
+a brief comment that describes what the field contains and, if applicable,
+the valid numeric range.
+<BR>Example:
+
+<P><TT>struct {</TT>
+<BR><TT>&nbsp;&nbsp;&nbsp; INT16 test; /* Value of test code: &lt;1,2,3>
+*/</TT>
+<BR><TT>&nbsp;&nbsp;&nbsp; BOOLEAN flag; /* Test result */</TT>
+<BR><TT>&nbsp;&nbsp;&nbsp; INT32 check; /* checksum of data block */</TT>
+<BR><TT>} TEST;</TT>
+<H3>
+<A NAME="Type modifiers"></A>7.5. Type modifiers</H3>
+Use type modifier wrappers in order to declare the scope of variables:
+
+<P><TT>LOCAL</TT> declare that the following variable is invisible outside
+current file
+<BR><TT>PUBLIC</TT> declare that the variable is visible anywhere
+
+<P>Always declare type modifiers for global variables.
+<BR>Make spare use of global variables. Think twice before implement them,
+to avoid unnecessary (and buggy) features.
+<BR><TT>LOCAL</TT> is defined as <TT>#define LOCAL static</TT>, <TT>PUBLIC
+</TT>as <TT>#define PUBLIC /* */</TT>.
+
+<P>Rationale: provide better portability and enhance clarity in program
+writing (in C you don't need to declare a variable <TT>PUBLIC</TT>: it's
+the default state).
+<BR>Also linking time is improved, because only needed symbols are visible.
+<H3>
+<A NAME="Variable initialization"></A>7.6. Variable initialization</H3>
+All variables must be explicitely initialized, both globals and locals.
+Avoid to init at declaration time, but do so in an init function:
+
+<P><TT>BOOLEAN flag=FALSE; /* Forbidden */</TT>
+
+<P><TT>VOID InitFunc(VOID)</TT>
+
+<P><TT>&nbsp; {</TT>
+<BR><TT>&nbsp;&nbsp;&nbsp; flag=FALSE;&nbsp; /* Init in this way */</TT>
+<BR><TT>&nbsp; }</TT>
+
+<P>Rationale: using global init whenever great changes are made inside
+code, possibly making incorrect assumptions, depending in which way the
+program flow init and check variables.
+<H3>
+<A NAME="Global variables"></A>7.7. Global variables</H3>
+Avoid to use global variables, wherever possible.
+
+<P>Rationale: see above.
+<div align=right><i><a href="#Top">[Top]</a></i></div>
+
+<hr WIDTH="100%">
+<H3>
+<A NAME="Function definitions"></A>8. Function definitions</H3>
+
+<H3>
+<A NAME="Function names"></A>8.1. Function names</H3>
+In C listings name functions following this naming convention:
+
+<P><TT>&lt;CategoryPrefix>&lt;ActionName>&lt;CategoryPostfix></TT>
+
+<P><TT>&lt;CategoryPrefix></TT> identifies a functional subsystem. In Alliance
+valid <TT>&lt;CategoryPrefix></TT> are LM, SK, AK, CK and KL.
+<BR><TT>&lt;ActionName></TT> identifies what the function does. Among valid
+<TT>&lt;ActionName> </TT>are Open, Close, Init, UnInit, Load, UnLoad, Read,
+Write, Print, Draw, Create, Delete and Rename.
+<BR><TT>&lt;CategoryPostfix> </TT>is an optional field that identifies
+a function attribute that is logically common to other <TT>&lt;CategoryPrefix></TT>
+functions as well.
+
+<P>Rationale:
+<BR>Many times, expecially in large projects, different functions perform
+logically similar tasks. It is for this purpose that <TT>&lt;ActionName></TT>
+was defined as part of function namespace. Assigning an equal <TT>&lt;ActionName>
+</TT>to different functions that perform similar tasks, greatly improve
+understability of code. The same concept applies to <TT>&lt;CategoryPostfix></TT>:
+identify common function attributes. So try to reuse as much as logically
+possible <TT>&lt;ActionName></TT> and <TT>&lt;CategoryPostfix></TT>.
+
+<P>Examples:
+
+<P><TT>LMInitComms()</TT> has <TT>&lt;CategoryPrefix>=LM</TT>,<TT>&lt;ActionName>=Init</TT>
+<BR><TT>&lt;CategoryPostfix>=Comms</TT>.
+
+<P><TT>CKInit()</TT> has <TT>&lt;CategoryPrefix>=CK</TT>, <TT>&lt;ActionName>=Init</TT>
+<H3>
+<A NAME="Spacing"></A>8.2. Spacing</H3>
+Put a space between a function argument and the next one both in function
+calls and definitions:
+
+<P><TT>&nbsp; IdontKnow(where, I, am);</TT>
+<BR><TT>&nbsp; Foo(BYTE bar, INT16 baz)</TT>
+
+<P>Rationale: improving readability.
+<H3>
+<A NAME="Function headers"></A>8.3. Function headers</H3>
+Each C function, after declaration, must have this comment:
+
+<P><TT>/*</TT>
+<BR><TT>&nbsp;* &lt;Description of what the function does></TT>
+<BR><TT>&nbsp;*</TT>
+<BR><TT>&nbsp;* INPUT:</TT>
+<BR><TT>&nbsp;* &lt;parameter name1> &lt;explanation></TT>
+<BR><TT>&nbsp;* &lt;parameter name2> &lt;explanation></TT>
+<BR><TT>&nbsp;* ...</TT>
+<BR><TT>&nbsp;*</TT>
+<BR><TT>&nbsp;* OUTPUT:</TT>
+<BR><TT>&nbsp;* &lt;output variable1> &lt;explanation></TT>
+<BR><TT>&nbsp;* &lt;output variable2> &lt;explanation></TT>
+<BR><TT>&nbsp;* ...</TT>
+<BR><TT>&nbsp;*</TT>
+<BR><TT>&nbsp;* RETURNS:</TT>
+<BR><TT>&nbsp;* &lt;function return value> &lt;explanation></TT>
+<BR><TT>&nbsp;* ...</TT>
+<BR><TT>&nbsp;*/</TT>
+
+<P>Where &lt;Description of what the function does> is a description, at
+a reasonably level of abstraction, of what the function do and how. If
+function arguments are citated directly here, put them inside '&lt;>',
+e.g. <TT>&lt;parametername></TT>. In this way, we can limit the devastating
+effect of sentences like this one: "The function function computes the
+square of number number in variable square".
+<BR>In the<TT> INPUT:</TT> part put, one argument for each line, the parameter
+name and its semantical meaning. The same concept applies to <TT>OUTPUT:</TT>
+field: if the function has one or more arguments which are assigned after
+function return. If the function has no parameters, put "None" after <TT>INPUT:</TT>
+field. If the function is a procedure (i.e., returns nothing) put after
+<TT>RETURNS:</TT> line "None" (you can avoid to put OUTPUT: None in this case, 
+and leave only <TT>RETURNS:</TT> with None). If a function or a procedure has 
+inputs, the INPUT type qualifier must be prepeneded before type declaration.
+
+<P>Example:
+
+<P><TT>PUBLIC IDENTIFIER LMOpen(INPUT STRING *ModuleName, INPUT UINT16 position)</TT>
+
+<P><TT>&nbsp; /*</TT>
+<BR><TT>&nbsp;&nbsp; * Loads in memory the given &lt;ModuleName>, in the
+&lt;position></TT>
+<BR><TT>&nbsp;&nbsp; * location in the LM chain.</TT>
+<BR><TT>&nbsp;&nbsp; *</TT>
+<BR><TT>&nbsp;&nbsp; * INPUT:</TT>
+<BR><TT>&nbsp;&nbsp; * ModuleName&nbsp;&nbsp;&nbsp;module name as ASCIIZ string</TT>
+<BR><TT>&nbsp;&nbsp; * position&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;relative position inside the LM chain</TT>
+<BR><TT>&nbsp;&nbsp; *</TT>
+<BR><TT>&nbsp;&nbsp; * RETURNS:</TT>
+<BR><TT>&nbsp;&nbsp; * an identifier to the newly opened module.</TT>
+<BR><TT>&nbsp;&nbsp; */</TT>
+
+<P><TT>PUBLIC VOID Nothing(VOID)</TT>
+
+<P><TT>&nbsp; /*</TT>
+<BR><TT>&nbsp;&nbsp; * Simply an empty stub.</TT>
+<BR><TT>&nbsp;&nbsp; *</TT>
+<BR><TT>&nbsp;&nbsp; * INPUT:</TT>
+<BR><TT>&nbsp;&nbsp; * None</TT>
+<BR><TT>&nbsp;&nbsp; *</TT>
+<BR><TT>&nbsp;&nbsp; * RETURNS:</TT>
+<BR><TT>&nbsp;&nbsp; * None</TT>
+<BR><TT>&nbsp;&nbsp; */</TT>
+<BR>&nbsp;
+<BR>Separate input from output variables. First put all variables in
+<BR>input, then those in output:
+
+<P><TT>FooBar(INT16 Input1, INT32 Input2, BYTE *Output1, INT16 *Output2,
+BYTE *Output3)</TT>
+
+<P>For assembler procedures, use the following template:
+
+<P><TT>;</TT>
+<BR><TT>; &lt;Description of what the subroutine does></TT>
+<BR><TT>;</TT>
+<BR><TT>; INPUT:</TT>
+<BR><TT>; &lt;registername> &lt;description></TT>
+<BR><TT>; &lt;memory address> &lt;description></TT>
+<BR><TT>;</TT>
+<BR><TT>; RETURNS:</TT>
+<BR><TT>; &lt;whatever></TT>
+<H3>
+<A NAME="Function declaration"></A>8.4. Function declaration</H3>
+Public functions must be declared in a .h file specific for that module.
+
+<P>Rationale: improve compile-time checking.
+
+<P>Always use standard type modifier wrappers LOCAL and PUBLIC when defining
+a function (see 5.5).
+<div align=right><i><a href="#Top">[Top]</a></i></div>
+
+<hr WIDTH="100%">
+<H3>
+<A NAME="C case constructs"></A>9. C case constructs</H3>
+
+<H3>
+<A NAME="Presence of default: statement"></A>9.1. Presence of default:
+statement</H3>
+In any switch() block there must be present a default: statement, in order
+to be sure handle invalid/badly formed variable values.
+<H3>
+<A NAME="Macros"></A>9.2. Macros</H3>
+Macros, when used, must be assigned to UPPERCASE names, e.g.:
+
+<P><TT>#define STRING char</TT>
+
+<P>Rationale: to avoid some macros side-effect, that are unnoticed at compile
+time, but deadly run-time.
+<BR>Put a descrptive comment on the right of the #define statement:
+
+<P><TT>#define PI 3.14157692 /* Fundamental constant */</TT>
+<div align=right><i><a href="#Top">[Top]</a></i></div>
+
+<hr WIDTH="100%">
+<H3>
+<A NAME="Run time consideration"></A>10. Run time consideration</H3>
+Bugs are hard to find, but if in the coding of functions standard way to
+check things are used, this activity will be much easier, though not absolutely
+easy.
+<BR>To cope with run-time errors, use in functions the assert() macro,
+that check the input variables, as in the following case:
+
+<P><TT>PUBLIC INT16 SquareRoot(INT16 number)</TT>
+
+<P><TT>&nbsp; /*</TT>
+<BR><TT>&nbsp;&nbsp; * Compute the square root of the integer number &lt;number>,
+and</TT>
+<BR><TT>&nbsp;&nbsp; * output the integer part of the result.</TT>
+<BR><TT>&nbsp;&nbsp; *</TT>
+<BR><TT>&nbsp;&nbsp; * INPUT:</TT>
+<BR><TT>&nbsp;&nbsp; * number</TT>
+<BR><TT>&nbsp;&nbsp; *</TT>
+<BR><TT>&nbsp;&nbsp; * OUPUT:</TT>
+<BR><TT>&nbsp;&nbsp; * A 16-bit integer with the integer part of result</TT>
+<BR><TT>&nbsp;&nbsp; */</TT>
+
+<P><TT>&nbsp;&nbsp; {</TT>
+<BR><TT>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; ASSERT(number>0);</TT>
+<BR><TT>&nbsp;&nbsp; }</TT>
+
+<P>The <TT>ASSERT</TT> macro can be disabled compile-time when Alliance
+kernel is stabilized.
+<div align=right><i><a href="#Top">[Top]</a></i></div>
+
+<hr WIDTH="100%">
+<H3>
+<A NAME="Standards issue"></A>11. Standards issue</H3>
+Apply global standards only where meaningful. POSIX compliance for instance,
+it is mandatory only for Linux AK, not for all Alliance system software.
+<div align=right><i><a href="#Top">[Top]</a></i></div>
+
+<hr WIDTH="100%">
+<H3>
+<A NAME="History"></A>12. History</H3>
+
+<table WIDTH="100%" >
+<tr VALIGN=TOP>
+<td><b><i>Release 1</i></b></td>
+
+<td>by Stefano Costa &lt;<a href="mailto:stefanocosta@netscape.net">stefanocosta@netscape.net</a>&gt;
+<br>Various modifications elsewhere, result of Alliance mailing list votation
+(case of typedefs, variables, functions, particular macros, type wrappers)</td>
+</tr>
+
+<tr VALIGN=TOP>
+<td><b><i>Release 1.1</i></b></td>
+
+<td>by Stefano Costa &lt;<a href="mailto:stefanocosta@netscape.net">stefanocosta@netscape.net</a>&gt;
+<br>Various adjustements</td>
+</tr>
+<tr VALIGN=TOP>
+<td><b><i>Release 1.2</i></b></td>
+
+<td>by Stefano Costa &lt;<a href="mailto:stefanocosta@netscape.net">stefanocosta@netscape.net</a>&gt;
+<br>Added CONSTANT, REGISTER, INPUT Updated directory tree.</td>
+</tr>
+
+<tr VALIGN=TOP>
+<td><b><i>Release 1.3</i></b></td>
+
+<td>by Stefano Costa &lt;<a href="mailto:stefanocosta@netscape.net">stefanocosta@netscape.net</a>&gt;
+<br>Added a sentence on "anarchy" of specification in paragraph 1.3</td>
+</tr>
+
+<tr VALIGN=TOP>
+<td><b><i>Release 1.4</i></b></td>
+
+<td>by Stefano Costa &lt;<a href="mailto:stefanocosta@netscape.net">stefanocosta@netscape.net</a>&gt;
+<br>HTML-ized the whole document</td>
+</tr>
+
+<tr VALIGN=TOP>
+<td><b><i>Release 1.5</i></b></td>
+
+<td>by Stefano Costa &lt;<a href="mailto:stefanocosta@netscape.net">stefanocosta@netscape.net</a>&gt;
+<br>Slightly changed in oreder to make release number and document formatting
+uniform with other specs</td>
+</tr>
+</table>
+
+</BODY>
+</HTML>

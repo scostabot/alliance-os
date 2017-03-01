@@ -1,0 +1,15 @@
+	This file contains the decissions taken where the CORBA specs give
+freedom to the ORB implementation.
+
+* Location of the release flag for the sequence type in the C mapping
+	The _release field is added to the mapping for sequences so we have:
+	IDL:
+	  typedef sequence<long,10> vec10;
+
+	C Mapping:
+	  typedef struct {
+	    CORBA_unsigned_long _maximum;
+	    CORBA_unsigned_long _length;
+	    CORBA_long *_buffer;
+	    UBYTE _release : 1; /* 1-bit release flag */
+	  } vec10;

@@ -1,0 +1,161 @@
+Mailing-List: contact alliance-kernel-owner@egroups.com
+Precedence: list
+X-URL: http://www.egroups.com/list/alliance-kernel/
+X-Mailing-List: alliance-kernel@egroups.com
+Reply-To: alliance-kernel@egroups.com
+Delivered-To: listsaver-egroups-alliance-kernel@egroups.com
+Mime-Version: 1.0
+Date: Tue, 24 Nov 1998 10:26:13 +0100
+To: alliance-kernel@egroups.com
+From: vhandel@chem.vu.nl (Ramon van Handel)
+Subject: [alliance-kernel] Alliance Security Model -- PROPOSAL
+
+Hi everybody,
+
+I have been thinking about security and I think I have a good system all
+sorted out.  Please read carefully, and give me opinions.  If everyone
+agrees I'll write up some specs sometime.
+
+1.  Security IDs
+
+Every CK object contains in its Object Header a Security ID.  The security
+ID consists of two variables, and looks like this:
+
+    UDATA securityLevel;       /* Security level           */
+    UDAYA securityInstance;    /* ID instance in the level */
+
+These values are given when the object is loaded.
+
+2.  The security hierarchy
+
+The two values determine the permissions of the objects that have the same
+ID.  There is a security hierarchy:  Level 0 has highest permissions,
+higher levels have lower permissions.  In every level there are many
+security instances;  all instances are peers.  Instances can be compared
+to UNIX UIDs.
+
+3.  Permissions
+
+What is allowed ?
+
+- When an object caches a new objectie, a kernel thread loads a new
+  thread, or a kernel thread loads a new kernel) there are restrictions to
+  the permissions of the new object:
+
+    (1) The new object's level is equal to or higher than the creator's level
+    (2) If it is equal, its instance is always equal
+    (3) If it is higher, it can be any instance
+
+Explanation:
+The level determines the object's permissions.  Thus, it is logical that
+an object cannot spawn a new object with more permissions than it has (1).
+Also, an object has a certain instance ('user') in its level.  The object
+should not be able to 'impersonate' other objects in the same level (2).
+Finally, the object can spawn a new object with any instance in higher
+levels.  In such a way, kernel threads can manage user threads (3).
+
+Object unloading works in the same way:
+
+    (1) An object is allowed to uncache any object in higher levels than itself
+    (2) An object is allowed to uncache objects in its level only of the same
+        instance as itself.
+    (3) An object isn't allowed to uncache objects in lower levels
+
+The CK provides a system function to change the security ID data of an
+object.  The rules:
+
+    (1) An object can't change its own security ID
+    (2) An object can only change security IDs of objects in higher levels than
+        itself.  The ID the target object is changed to can be any instance in
+        a higher level than the object that changes the ID, or the same instance
+        and level as the changer ID.
+
+Level 0 should have only one instance, instance 0.  It is the 'superuser'
+instance.
+
+4.  SecuritySK
+
+The security SK runs at level 0, instance 0.  One of the main goals of the
+security SK is to change other object's IDs.  On presenting the proper
+authorisation the security SK will change the object's level to the
+requested level, if it is set up to do so.  Example will follow below
+somewhere.
+
+5.  ID mapping
+
+The CK doesn't know any ID mapping (level/instance ->  username/passwd.)
+This is left completely up to the SKs that require it.  ID mapping is
+different on many systems (comaper NT to unix) and flexible mapping would
+be good for emulating purposes at least.  It is my belief that the system
+I have described allows just about any mapping.  An example of mapping
+would be the UNIX one:
+
+instance 0,   level 1 -> root
+instance 1,   level 1 -> bin
+instance 2,   level 1 -> daemon
+...etc...
+instance xxx, level 2 -> uid=xxx
+
+Passwords, GIDs etc are kept at EK level.  The CK provides a system
+function to retrieve an object's security ID.  Anyone may do this for any
+object.
+
+In order to keep system-wide usernames/passwords, it is probable the
+SecuritySK will provide generic mapping services (this would also solve
+the authorisation problem.)  But things like GIDs are very filesystem/unix
+specific, and would be kept in the ext2fs LM.
+
+6.  Example
+
+Here's a nice example:
+
+On system startup, the ACLI gains control.  The ACLI thread that runs is
+the login thread:  it asks username and password.  The login thread runs
+at level 0 and is trusted (nobody can change it, so no security breakins
+possible here.)
+
+User fills in uname and passwd.
+
+ACLI contacts SecuritySK, verifies uname/passwd, and fetches security ID
+of user (level/instance.)
+
+ACLI caches a new thread, the shell thread, with security ID of the logged
+in user.  Any program the user spans has its security ID.  Other users
+can't kill its programs this way (because they are in the same level.)  On
+the other hand, the root user, or a kernel thread, can.
+
+Now two situations:
+- your standard su:
+user types su, then password.
+su program contacts security SK, with uname/passwd/security ID change
+request.  Security SK verifies authentication and if correct, changes the
+ID of the shell thread to the root ID (su->root passwd.)  su user works in
+a similar way.
+
+- user spawns new kernel:
+user runs a program for a kernel that wasn't loaded yet.  Kernel is
+loaded, but gets security ID of user.
+Kernels often need a higher security ID than the user.  The kernel
+contacts the security SK and requests security change for itself.  The
+kernel has to present authentication (not neccessarily in the same way as
+su;  most probably some unfakable kernel data needs to be checked against
+a kernel database in the security SK.  This way, the sysadmin can decide
+which kernels are allowed.  Also, the user can't seize control of the
+machine using his own kernel that 'opens the backdoor' for him, because
+only trusted kernels would be enterd in the security SK database.)
+
+-----------------------------------
+
+What do you think ?
+
+Ramon
+
+---
+Ramon van Handel   <vhandel@chem.vu.nl>
+Chemistry Student, OS Programmer and all-round Weirdo
+"They could but make the best of it, and went around with woebegone faces
+sadly complaining that on Mondays, Wednesdays, and Fridays they must look
+on light as a wave;  on Tuesdays, Thursdays and Saturdays as a particle.
+On Sundays, they simply prayed."  -- Banesh Hoffmann, The Strange Story of
+the Quantum
+

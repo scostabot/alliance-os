@@ -1,0 +1,3 @@
+- Build other LM functions (LMLoad(), LMGetSymbol()....)
+  
+- Add that functions in module tester

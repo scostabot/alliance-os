@@ -1,0 +1,7 @@
+- Make sure the ELF entry point is loaded right with its alignment !!
+  Right now, we assume entry is page aligned.  It should always have
+  the same offset in the virtual as in the physical page.
+  Also change the code in the CK to reflect this change !
+- In ELF loader, check that each segment > extMemTop
+- Make sure page tables are padded correctly if the amount
+  of physical memory isn't a multiple of 4MB

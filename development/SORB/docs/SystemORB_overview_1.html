@@ -1,0 +1,269 @@
+<HTML>
+<HEAD>
+   <META HTTP-EQUIV="Content-Type" CONTENT="text/html; charset=iso-8859-1">
+   <META NAME="GENERATOR" CONTENT="Mozilla/4.03 [es] (Win95; I) [Netscape]">
+   <TITLE>System ORB overview</TITLE>
+</HEAD>
+<BODY>
+
+<H1>
+System ORB overview</H1>
+
+<OL>
+<LI>
+<A HREF="#Disclaimer">Disclaimer</A></LI>
+
+<LI>
+<A HREF="#Objectives">Objectives</A></LI>
+
+<LI>
+<A HREF="#Dual Syntax">Dual syntax</A></LI>
+
+<LI>
+<A HREF="#Corba Support">CORBA support</A></LI>
+
+<OL>
+<LI>
+<A HREF="#FGNF">The "Alliance Global Naming Service"</A></LI>
+
+<LI>
+<A HREF="#IIOPD">The IIOP daemon</A></LI>
+
+<LI>
+<A HREF="#CORBA and IPC">CORBA and IPC</A></LI>
+
+<LI>
+<A HREF="#Languaje Mappings">About the languaje mappings</A></LI>
+
+<LI>
+<A HREF="#IDL Compiler">The IDL compiler</A></LI>
+</OL>
+
+<LI>
+<A HREF="#IDL Compiler">Resoources</A></LI>
+</OL>
+<A NAME="Disclaimer"></A>
+<H2>
+Disclaimer</H2>
+
+<UL>This document is the result of a first (and not too deep) read to the
+CORBA specs, focussed in those parts of interest to the System ORB, so
+many of this info could be not accurated. I strongly encourage anyone to
+find mistakes on this document.</UL>
+<A NAME="Objectives"></A>
+<H2>
+Objectives</H2>
+
+<UL>The main objective of the system ORB is provide a simple and secure
+way of accessing the Alliance core (SKs and CK) functions, leaving the
+programmer of the task of checking if they are present in a local or remote
+machine, if they are loaded or not and other tasks not related with the
+program itself.
+
+<P>As a side effect of this approach, we were very close to the CORBA design,
+so we incorporated it on our design. This provides a second objective,
+that is providing access to any "object" in the system (you can think a
+object as a group of similar functions, an executable, a library...), even
+if it is not a local one. For that, the CORBA specs provide quite detailed
+information (3000+ pages for the full CORBA, CORBAservices and CORBAfacilities
+specs).
+
+<P>As a CORBA compliant ORB, the System ORB (or SORB, for short) will need
+to maintain a database of installed objects, so, to a certain extent, it
+acts as a system configuration manager. The third objective of the System
+ORB is to provide full support for the system configuration tasks (keep
+track of unnused and repeated DLLs, for example).
+<BR>&nbsp;</UL>
+<A NAME="Dual Syntax"></A>
+<H2>
+Dual Syntax</H2>
+
+<UL>CORBA compliance implies the use of the CORBA languaje mappings. This
+results in a lot of lines to perform simple OS calls. The benefits of that
+are small:
+<UL>
+<LI>
+Portability: The same code will run in any other CORBA system which has
+an implementation for the methods. This is usefull for writing thin clients
+for Alliance. With just an ORB installed this low performance machines
+(like i286) can contact the server's SORB and access all Alliance functions
+(that are executed in the server).</LI>
+
+<LI>
+Network Transparency: Using the CORBA IDL mapping allows the use of the
+ORB to locate the object implementation in any networked machine. But...
+can't we accomplish the same by encapsulating all the CORBA related sentences
+in a more simple one? Sure we could, and it would be friendlier to the
+programer (take a look at the C languaje mapping in the CORBA specs, chapter
+19, I think, and you will agree with me)</LI>
+</UL>
+So, what I'm suggesting here is a library with the "usual" names for functions
+that will hide all the CORBA related stuff (object initialitation and the
+like) for the system well-known objects (CK, SKs and, perhaps, even LMs).
+
+<P>This library will not forbid the use of the normal use of the languaje
+mappings, so what we get here is a "dual syntax"... you get the same actions
+performed but you can write it in two diferent ways.
+
+<P>Another benefit of this, is that people that are not versed in CORBA
+or that do not want to code a distributed application can forget that Alliance
+is CORBA based and write their programs as they always did.</UL>
+<A NAME="Corba Support"></A>
+<H2>
+Corba Support</H2>
+
+<UL>This will be, by far, the most complicated part of the System ORB,
+and the most important.</UL>
+<A NAME="FGNF"></A>
+<H3>
+The "Alliance Global Naming Service"</H3>
+
+<UL>The CORBAservices specification defines the CORBA Naming service that
+allows to search for an specific object by name and location. This is very
+useful, but supposes that every ORB in the networked environment will have
+information of the objects provided by other machines. That is, if I want
+to make a call to the GrSK, first I have to find it in my local Naming
+Service that will point me to the correct location of the object. If the
+object is in a networked machine, my orb and its will communicate via the
+IIOP (Internet InterOrb Protocol) when I send the call.
+
+<P>The problem I see here is that it is almost impossible to have a Naming
+service with information on all the objects available trough the internet
+(but it could work well on more stable environments, like enterprises,
+even big ones). That's why I suggest this "Alliance Global Naming Service".
+
+<P>In fact, this is not a new service, just a little change on the way
+it works (or at least, on the way it seems to me it works :). This change
+means that the local naming service (and so, the local Interface Repository)
+only knows about locally installed objects (which are always updated) and
+when an object is not found, it is searched in a user defined (or automatically
+generated by sending a broadcast message asking for compatible ORBs) list
+of naming services across the network until it is found. Note that, for
+WAN (and hopefully LAN), the delay on the first search will be almost unnoticeable,
+as the network communication will be the responsable of the most important
+part of the delay.
+
+<P>Now there are some ideas that have to be specified in this topic...
+for xample, if a remote naming service can point us to search in a different
+one (that is, our list of naming services point to www.allos.org, and
+www.allos.org points to namingservice.allos.org), or if only those
+specified in the local configuration file will be scanned. The first approach
+will be more powerful, but probably less eficient, as we should have our
+list ordered with the most commonly used objects at top, and will also
+require some checks for loops (local -> Remote A -> Remote B -> local).</UL>
+<A NAME="IIOPD"></A>
+<H3>
+The IIOP Daemon</H3>
+
+<UL>As I have introduced a little earlier, two orbs communicate using the
+Internet InterOrb protocol. As it is (mainly) a network protocol, we will
+need some help from the NetSK. I think that they could provide the implementation
+for the IIOP calls defined in the CORBA specs, but it would be necessary
+a Daemon to listen for IIOP requests, so they can be processed. We should
+agree in a way of interfacing with it (as well as in a standard port for
+it, but that is less important). I must confess that I haven't not deeply
+read the GIOP/IIOP/DCE IOP chapters of the CORBA specs, so I will not say
+much more :-)</UL>
+<A NAME="CORBA and IPC"></A>
+<H3>
+CORBA and IPC</H3>
+
+<UL>Corba relys on some way of IPC for interfacing with running processes
+(for example, delivering a request in a program being executed). That way
+should be one of the system standard IPC ways. I have some suggestions,
+but have not analised them, so I don't know which one is better. I would
+apprecite some input here.
+<OL>
+<LI>
+Direct Call: This is the first IPC method that comes to my mind, and that
+ELF and dynamic linker makes more easy. Executables can be linked with
+a special flag (I'm talking about the linux environment, I belive that
+we will be at least as good as them) that allows the dynamic linker to
+(dinamically) link other executables to them as if it was a library. This,
+joint with some well defined entry points, will allow fast and reliable
+IPC just by knowing the name of the executable.</LI>
+
+<LI>
+Page swapping: This has been discussed in the Kernel List and has been
+suggested by the CK people. It consists in swapping memory pagges from
+the sender to the receiver of the message. This will allow the sender to
+deliver messages very fast, but the received messages have to be queued
+until the receiver processes them (allowing the message handling function
+to get some CPU each time a message arrives will solve this, butcan slow
+down normal execution...)</LI>
+
+<LI>
+Use CORBA for passing remote messages (1 or 2 for local IPC). As CORBA
+messages are requests, there is a standard way of passing them (IIOP) to
+the target machine (and ORB), which them delivers the message as appropiated.
+But... can this be enhanded to deliver ANY kind of messages?</LI>
+
+<LI>
+MPI: This has been considered and dropped.</LI>
+</OL>
+</UL>
+<A NAME="Languaje Mappings"></A>
+<H3>
+About the Languaje Mappings</H3>
+
+<UL>Well, these are only some thought I had while browsing the C languaje
+mapping (CORBA specs, chapter 19) and reviewing some code (ORBacus, OmniORB)
+using the C++ languaje mapping.
+
+<P>Fists, the C languaje does not support objects, and CORBA is an object
+based architecture, so the weird things that need to be done to code in
+C for CORBA are quite ammusing (I still don't know how properties are stored...).
+In exchange, the languaje mappings (or at least the code needed for using
+an object) for object oriented languajes like C++ are easier to understand
+and almost straigtforward from the IDL definition. Also, skeletons and
+implementations (also interfaces?) maintain a relationship based on inheritance,
+which makes it very easy to write the implementations (at least compared
+to the C mapping).
+
+<P>That's why I suggest to develop first the C++ languaje mapping and when
+it is finally working try to set up the C one.</UL>
+<A NAME="IDL Compiler"></A>
+<H3>
+The IDL Compiler</H3>
+
+<UL>Also, we will need to code some IDL compilers (for C, C++, Smalltalk,
+Java...), one for each languaje mapping we are going to support (and we
+must support them all, because we don't want to limit the number of programming
+languajes that will run on top of Alliance OS).
+
+<P>I think that I will start asking for help for doing so (after all, the
+specifications are wrote... at least the public part).
+
+<P>We also need to know how our internal representation will be, so the
+IDL compiler can create the stubs and the types for the implementation.</UL>
+
+<H2>
+<A NAME="Resources"></A>Resources</H2>
+
+<UL>ORBacus:&nbsp; <A HREF="http://www.ooc.com/ob.html">http://www.ooc.com/ob.html</A>
+. This has some good examples about how to use CORBA from a programming
+languaje. I just downloaded the documentation (in Portable Document Format,
+.pdf, you will need Acorbat Reader), but there is also the free source.
+This is the most advanced Free ORB implemetation I've seen (even when it
+implements BOA still).
+
+<P>The OMG pages: <A HREF="http://www.omg.org">http://www.omg.org</A> .
+Here you can get the CORBA , CORBAservices and CORBAfacilities specifications.
+
+<P>ORBit:&nbsp; <A HREF="ftp://ftp.gnome.org/pub/ORBit/ORBit-0.2.tar.gz">ftp://ftp.gnome.org/pub/ORBit/ORBit-0.2.tar.gz</A>
+. Bad documented and still in work in progress, but is the only GPLed ORB
+compliant with CORBA 2.2 we have found. It is more than probable that this
+becomes the start point for the System ORB.
+
+<P>MPI (Message Passing Interface):&nbsp; <A HREF="http://www.netlib.org/utk/papers/mpi-book/mpi-book.html">http://www.netlib.org/utk/papers/mpi-book/mpi-book.html</A>
+. I don't think this would be of any use, but without looking at it you
+can't tell.
+
+<P>You can get a lot more of links from the message "links, links, links"
+posted by Jean Queralt, and a previous one posted by Daniel Arbuckle pointing
+to 2 more free source ORBs (for getting one of those you must have CVS
+tools installed)
+<BR>&nbsp;</UL>
+
+</BODY>
+</HTML>

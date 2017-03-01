@@ -1,0 +1,265 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2 Final//EN">
+<HTML>
+<HEAD>
+	<TITLE>Alliance NetSK - The CommManager; first impressions Draft</TITLE>
+</HEAD>
+<BODY>
+<h1>The Alliance NetSK CommManager: [draft]</h1>
+
+<h2>Contents:</h2>
+<ul><li><a href="#1">General overview.</a>
+<li><a href="#2">CommManager Diagram.</a>
+<li><a href="#3">Relationship with other System Kernels.</a>
+<li><a href="#4">Related specs from Alliance.</a>
+<li><a href="#5">Supporting devices.</a>
+	<ul><li><a href="#6">Devices families</a>
+	<li><a href="#7">Registering new families</a>
+	<li><a href="#8">Registering a new device</a>
+	<li><a href="#9">Interfaces between devices an the family device</a>
+	<li><a href="#10">Devices to be implemented</a></ul>
+<li><a href="#11">Supporting protocols.
+	<ul><li><a href="#12">Protocol families</a>
+	<li><a href="#13">Registering new families</a>
+	<li><a href="#14">Registering a new protocol in a family</a>
+	<li><a href="#15">Protocols to be implemented</a></ul>
+<li><a href="#16">Binding protocols and devices.</a>
+<li><a href="#17">Advanced features.</a>
+	<ul><li><a href="#18">CommManager information interface</a>
+	<li><a href="#19">Neighbour and related features discovery</a>
+	<li><a href="#20">Multihoming</a>
+	<li><a href="#21">Multilink support</a>
+	<li><a href="#22">Special management for media use optimization</a>
+	<li><a href="#23">Load balance</a>
+	<li><a href="#24">Shared routing table</a>
+	<li><a href="#25">Statistics</a>
+	<li><a href="#26">Protocol-to-protocol bridging</a>
+	<li><a href="#27">Open port</a></ul>
+<li><a href="#28">Other features.</a>
+<li><a href="#29">IIOP and distributed protocols.</a>
+	<ul><li><a href="#30">IIOP</a>
+	<li><a href="#31">Distributed protocols</a>
+	<li><a href="#32">BPP: the By-Pass Protocol</a></ul>
+<li><a href="#33">Things to read.</a>
+</ul>
+<P><BR>
+
+
+
+<a name="1"><h3>General overview:</h3></a>
+The NetSK is the Alliance System Kernel responsible to handle all the communcations between our machine
+and other ones.<BR>
+This proposal focuses on some kind of management system who would manage a great part of the NetSK functions. As the NetSK components have not been yet discussed, it´s possible that I´ve forgot some functionalities. Just tell me.<BR>
+<BR>
+The module commented in this paper is the CommManager (anyone can propose other names?, please) which is responsible for manage all the protocols, communication devices, their relationships and provide the NetSK of some advanced features to improve perfor
+mance in the system.<BR>
+The concept of the CommManager borns in the idea of having all the NetSK services in one module that could handle lot of protocols and comunication devices at the same time, sharing its resources and providing some additional services to all of them.<BR>
+<BR>
+All the considerations made in this paper are considered for a rigourous standar-based implementation,
+although we will certainly establish some Alliance-propietary protocols.
+<P><BR>
+<a name="2"><h3>CommManager Diagram:</h3></a>
+The ConnManager would have this aspect:<P>
+<img src="CommManager.gif" width=826 height=517 alt="" border="0"><P>
+<font size="-1"><center>[Figure 1 - CommManager diagram]</center></font>
+<P>
+As you can see in the figure, the CommManager is composed by 3 modules: the Protocol module, the Device module and the Bindings module. All will be discussed in the following paragraphs.
+<P><BR>
+<a name="3"><h3>Relationship with other System Kernels:</h3></a>
+Two are the System Kernels (SK) that might be involved in NetSK implementation.<BR>
+First (and most important), the Input/Output System Kernel (IOSK).<BR>
+This SK handles all the input and output streams that a system uses.
+Althougth our relationship is not stablished (neither defined), they´ll probably own the MAC sublayer (and this way the device drivers too); actually, nothing has been established.<BR>
+<BR>
+The other SK should be the Security System Kernel (SSK), as it deals with all security considerations in the system and this aspect has, normally, a lot to do with communications. My information is that this SK doesn´t seem to be created.
+<P>
+<center><img src="Relaciones.gif" width=383 height=182 alt="" border="0"><P>
+<font size="-1">[Figure 2 - NetSK and other SKs]</font></center><P>
+<i>Note:</i> as I´ve never implemented the NFS protocol (and never read a spec about it) I don´t know if the FSSK is another SK to take in consideration.
+<P><BR><BR>
+
+<a name="4"><h3>Related specs from Alliance:</h3></a>
+Appart from the specs of the SKs above mentionned SKs might post, reading and deeply understandig the Loadable Modules (LM) specs is encouraged.<BR>
+The LMs are the fondamentals for NetSK libraries, protocol implementation, device drivers and other and we will use it in all development fields.<BR>
+<P><BR><BR>
+
+<a name="5"><h3>Supporting devices:</h3></a>
+The primary function of the CommManager it´s to give support to a wide variety of communication devices. Register them, handle their transmisions and recepcions are only a few of its responsabilities.<BR>
+<BR>
+<a name="6"><b>Device families:</b><BR></a>
+For organization and implementation purposes the devices are organized in families. Examples of families would be Ethernet LAN cards, ISDN cards, modems, ... This eway, a family is diferent from the other in its MAC sublayer implementation. That is, in th
+e way they encode the packets to be transmited.
+<BR><BR>
+<a name="7"><b>Registering new families:</b><BR></a>
+As each family is different from other, different treatment must by applied to it.<BR>
+When a new device is to be registered, the first think it must do is ask for the existence of it´s family packet manager.<BR>
+This family-particular module is the responsible to handle the incomming packets and pass the data to the rigth upper protocols. You can see it as a packet driver, if you want.<BR>
+As each device family uses diferent methods to identify the destination protocol, a different packet manager must be implemented for each one.<BR><BR>
+If the CommManager doesn´t have the correspondant packet manager in its system, it will ask for it. The
+manager, implemented as a LM, could be provided by the distribution files of Alliance (if we already
+have implemented it), by the manufacturer or by a 
+network connection. This last point will be discussed later.
+<P><BR>
+<a name="8"><b>Registering a new device:</b><BR></a>
+Each family packet manager has a device register interface which has to be invoked by each new device that wants to be registered in the system.<BR><BR>
+This registerer should register the new device in the pertinent tables and do other tasks like asign different identification numbres to equal devices (example: 2 LAN cards of the same model).<BR>
+<BR>
+Next to be registered, the system should check what network the device can inmediatly see and refresh the system´s neighbours.
+Other actions can be executed after the device is registered.
+<P><BR>
+<a name="9"><b>Interfaces between devices an the family device</b><BR></a>
+The interfaces between devices an the family packet manager are device drivers, which sould provide the packets that they receive bit by bit and transmit the paquets that upper protocols give to them.<P>
+<center><img src="Drivers.gif" width=264 height=298 alt="" border="0"><P><font size="-1">[Figure 3 - Device drivers]</font></center><P>
+The drivers will be also implemented as LMs.
+<BR><P>
+<a name="10"><b>Devices to be implemented:</b><BR></a>
+LAN cards, modems and ISDN are only few examples. Another thing to discuss parallely.
+<P><BR><BR>
+<a name="11"><h3>Supporting protocols:</h3></a>
+A lot of propotols are to be supported by Alliance, althought TCP/IP should be the first to be
+implemented.<BR>
+As the Alliance project grow, more protocols will be ported to the platform, so we must offer a way to
+incorporate new protocols to the CommManager. This is the job of the Protocol Register interface that you can see in the figure.
+<P><BR>
+<a name="12"><b>Protocol families:</b><BR></a>
+As for devices, protocols can be grouped in families.
+What we understand by a protocol family is TCP/IP family, IPX/SPX, etc.
+<P><BR>
+<a name="13"><b>Registering new families:</b><BR></a>
+There are 2 posibilities for manage the protocol families.
+The first is manage the families thru the protocol registerer and the second option, which sounds better for me, is to let each family manage himself.
+This way, the protocols ´s family chain would be managed by some king of internal manager.
+Also, for the packet managers be able to pass the incomming packets to the respective protocols, each new protocol which will recei packets must register in a table of TYPEs used by all of the packet managers.
+<P><BR>
+<a name="14"><b>Registering a new protocol in a family:</b><BR></a>
+Normaly, a protocol family owns all the necessary protocols, but some circumstances may need to register new protocols, for example new versions of existing ones, like IPv6.<BR><BR>
+When a new protocol is to be registered in a certain family, the request will be passed thru the Protocol Register to the family manager. Next, the family will be responsible to place the new protocol in his LM chain position.<BR>
+The new protocol should pass some info to the Protocol registerer, like FamilyID and some other to the family like positions in the chain, pointers to its functions, etc.<BR>
+When differente versions of a protocol must be used at the same time, the protocol must be responsible to handle the differences between versions and pass the data to the corresponding version of the protocol.
+<P><BR>
+<a name="15"><b>Protocols to be implemented:</b><BR></a>
+This subject will be discussed in another messaje as it is complex enougth for himself. I repeat, TCP/IP should be implemented first, but I don´t know if other families should have to be considered initially too.
+<P><BR><BR>
+<a name="16"><h3>Binding protocols and devices:</h3></a>
+When all the protocols and devices are registed, we must establish what are the relationships between them as some devices should support all the protocols but in some cases this should be not true.
+This way, we must implement some kind of module responsible for this kind of bindings.<BR>
+What we should investigate is what will be the default bindings that a device (or a family?) can support.
+<BR><BR>
+This module should be also responsible to disallow bindings dinamically.
+<P><BR><BR>
+<a name="17"><h3>Advanced features:</h3></a>
+This section describes some features that I would like to implement in the CommManager.
+<P><BR>
+<a name="18"><b>CommManager information interface:</b><BR></a>
+This is a special module which would be responsible to give system info to other systems when it receives some type of request. It´s utility is discussed below.
+<P><BR>
+<a name="19"><b>Neighbour and related features discovery:</b><BR></a>
+A very important information for a system is to know what are the neighbour it has. This information is used in the routing tables and for other uses.<BR>
+In this case, it could be used to know what resources our system can obtain in the networks it is connected.<BR>
+The idea is to have remote access to software resources that are perhaps not actually part of our system, like a device family packet manager. If our system can send a broadcast packet to ask other systems for this LM, it will then be able to install it. 
+Other applications can be implemented in this cooperative fashion.
+<P><BR>
+<a name="20"><b>Multihoming:</b><BR></a>
+What we understand by a multihomed system is a machine that owns multiple IP addesses, in example.<BR>
+Multihoming can be implemented in various ways. Multiple IPs on a single LAN card, multiple LAN cards with it´s own IP or a mix of this two possibilities.<BR>
+<BR>
+When a system is multihomed in a hardware way (multiple cards), each card can be connected to a different network. That´s not always true as in some cases we will want to have different cards to a same network (specially token-based ones).<BR>
+<BR><BR>
+Instead of thinking of a device oriented organisation, I would like to consider a network oriented one.<BR>
+This way, can provide the protocols the ability to say "transmit this packet to network X" and not "thru device Y". This provides the system the posibility to decide wich device is the better to transmit it in base of certain parameters like congestion, t
+ransmission speed, etc. I think this enables a more flexible way to transmit information.
+<P><BR>
+<a name="21"><h3>Multilink support:</h3></a>
+The prior idea should allow the system to work with multilink support. This feature enables a system to use multiple media simultaneously for transmit/receive information in parallel. For example, using the two B channels of an ISDN and a LAN conection to
+ transmit data to another host. Very powerfull, IMO.
+<P><BR>
+<a name="22"><b>Special management for media use optimization:</b><BR></a>
+In a multihomed system, optimization of the devices use it´s a primary duty.<BR>
+The purpose of this paragraph is to show an example of this. You will also understand what I was saying above about having multiple LAN cards attached to a same network.<BR><BR>
+Imagine that we have 2 Token Ring cards in our system and that they are conected to the same network. In token-based architecture, a card can only transmit data when it owns some "permission", the token, which is a packet that travels around the ring. Als
+o, a card cannot hold the token a lot of time; there´s a timer for this, called the Token Holding Timer (THT). When then THT expires, the token must be released and passed to the next station.<BR>
+Now, the idea is to hold the token more time, using the THT time of the two cards.
+Supposing that each card has its own transmission buffer, if it sends all of its packets and the THT has not time out yet, it can take info from other cards to transmit them. Criteria to decide which packets to take is to be discussed, but an
+interesting idea could be the posibility to send high priority packets.
+<P><BR>
+<a name="23"><b>Load balance:</b><BR></a>
+This is the logical conclusion of the paragraphs from above.<BR>
+Load balance is the ability for a system to send packets thru different interfaces, even if the paths are completely different for 2 packets. That´s not a problem, the system knows that the packets <i>can</i> arrive to destination.<BR>
+A little problem of this is that generally, as the packet transport information of the sender (MAC and IP adderesses, for example). This can be a problem if the receiving application is waiting for data incomming from particular MAC or IP direction.<BR>
+The solution for that could be the possibility of masquerading the real addresses with the addresses expected. Let´s see an example.<BR>
+Imagine that we have 2 LAN cards (say Token Bus), with MAC1, IP1, MAC2 and IP2 addresses.<BR>
+If some data has to be sended to IP3 (some host), suppose that the first card to transmit the data was card 1 (MAC1, IP1). If its THT expires, when the token arrives to card 2 (MAC2, IP2) it would be possible to it to transmit some data too.<BR>
+Well, if the application relies on IP1 to assure the data comes from the right host, an error will occurr. An example could be an app that had stored IP1 with "getRemoteAddress". The following comparisons will raise an error.<BR>
+A solution could be the possibility for a system to ask another for what are all of its directions, creating a relation between all of them. They will all be considered the same.
+<P><BR>
+<a name="24"><b>Shared routing table:</b><BR></a>
+As I´ve never implemented a routing table and as my experience is principally TCP/IP-based, I don´t know if the following proposition is possible.<BR>
+I would like to set up a shared multiprotocol routing table. This way, all system protocols could reach any host using other protocol´s routing information. I repeat, I don´t know what´s the procedure for IPX/SPX to route packets and so I don´t know if th
+is idea is possible.<BR>
+This could be used to an application discover what kind of protocol to use for reach a certain host?
+<P><BR>
+<a name="25"><b>Statistics:</b><BR></a>
+This feature enables upper protocols and applications to obtain a set of communication statitics. An inicial set should be stablished, thus starting a new discussion in the list, and an user-extension port should be implemented. This way, new statistics w
+ill be added later.
+This extensiones should always be made thru LMs.
+<P><BR>
+<a name="26"><b>Protocol-to-protocol bridging:</b><BR></a>
+Another interesting idea to discuss is the use of hosts to act as bridges between different protocols. You can see an example in the following figure.<P>
+<center><img src="Bridge.gif" width=352 height=139 alt="" border="0"><P><font size="-1">[Figure 4 - Acting as a bridge]</center></font><P>
+This kind of translations are implemented in bridges that connect 2 networks working with different protocols each one.<BR>
+Protocol translators would be implemented as LMs too.
+<P><BR>
+<a name="27"><b>Open port:</b><BR></a>
+As Alliance is based on GNU licences, it will be logical to implement some kind of user-extension port.
+This
+way, users and programmers would have the possibility to expand their own CommManager with their personal features. Of course, it will be importan
+t to study all the side effects that this feature could suffer.
+<P><BR><BR>
+<a name="28"><h3>Other features:</h3></a>
+The above features are not, I´m sure, the only possible. Let´s propose.
+<P><BR><BR>
+<a name="29"><h3>IIOP and distributed protocols:</h3></a>
+Actually, the System-ORB team is discussing how to integrate CORBA in Alliance. As you can read the
+first
+draft from the System-ORB mailling list (www.findmail.com/list/system-orb/), they want The NetSK to implement CORBA´s IIOP.<BR>
+<BR>
+<a name="30"><b>IIOP:</b><BR></a>
+CORBA lets objects invocate procedures of other objects without knowing where the target object lives, how it executes the requested operations and what is its language implementation.
+If the target object is on another system (which must be ORB-compilant), the System-ORB must handle this situation in a transparently way.<BR>
+Evidently, if the call must be passed to another system, some kind of communications are used.
+IIOP stands for Internet Inter-ORB Protocol, and its function is to handle all the comunications between diferent ORB-compilant systems that will execute the request and send a response to the initiator.<BR>
+We will need to read the IIOP specifications, writen by the Open Management Group (OMG - www.omg.org), and implement them in the NetSK. How we will integrate it in the CommManager it´s another story.
+<P><BR>
+<a name="31"><b>Distributed protocols:</b><BR></a>
+This is another idea I have developed recently. Suppose that you receive from an application a request to send some information with a particular protocol to some system.<BR>
+If this protocol is not registered in the system, an error should be raised. But what if we send a broadcast packet asking for someone who can deal with this protocol?<BR>
+2 posibilites can then happen.<BR>
+First, instead of sending the broadcast packet, the system can already have in his Protocol Family array an entry with systems that can handle this situation. Say that when a system starts, it sends some broadcast packet to its neighbours to tell them wha
+t are the protocols it recognizes.<BR>
+Second, if the entry doesn´t exist, the system sends a help packet, which should be answered by systems that could handle the request.<BR>
+Other way, we can also implement an option where some systems will act as backup for our host.<BR>
+Say that our host is receiving too many packets and that a buffer overrun is going to occur. Suppose too that the path that the incomming packets are traveling is time consumming. The normal solution should be to send a restriction packet to the sender. O
+ne possibiliy for higher performance could be to send a packet to our neigbours to ask them to ack as buffer for us. This way, the system answers with a confirm packet and will start to store the packets that were direct to us. When our system is ready to
+ receive more packets, it asks the backup system to start sending them to it and send another packet stoping the backup option.<BR>
+<P><BR>
+<a name="32"><b>BPP: the By-Pass Protocol:</b><BR></a>
+This proposed protocol falls from the above explained idea. It´s job would be to by-pass all kind of packets coded with a protocol not registered on our system to other system that could handle it.<BR>
+Some scenarios can occurr:<BR>
+First, the packet is forwarded to another system, which executes the code and sends the response to the source, overrinding the MAC source address of the packet with the MAC´s original destination of the request.<BR>
+Second, it can translate the data of the original packet to another protocol, which is supported by the original destination host.<BR>
+Third, it can send the response to the original destination host, leaving to it the responsability to send the response to the source host. This has the advantage that our system is sure that a response has been sended.<BR>
+<i>Note:</i> the following release will include diagrams of this scenarios.
+<P><BR><BR>
+
+<a name="33"><h3>Things to read:</h3></a>
+This paragraph describes some docs that NetSK members should read. You don´t have to understand all the docs and, of course, you DON´T need to lear them. There´s no exam ;-)<BR>
+Althougth a good comprehension of these docs is really necesary, just keep them with you to use them as reference.<BR>
+As it´s too late here, I´ll post this in another mail. Sorry, I´m really tired.
+<P>
+<b>Note:</b> IOSK Release 5 has been posted few days ago. Go to
+www.findmail.com/list/alliance-iosk/
+<BR><BR><BR>
+<i>Last consideration:</i><BR>
+Please, I want to ask you to comment all the points you can.<BR>
+This is an internal proposal and it´s not definitive, of course. Althougth, I would like to post a first Release soon. We sould show to the rest of the project that we are working, so let´s propose!
+</BODY>
+</HTML>

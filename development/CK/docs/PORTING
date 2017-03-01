@@ -1,0 +1,145 @@
+/* This document is outdated *already*.  I'm going to spend some time
+ * in the future updating all documentation, but this isn't urgent.
+ * -- Ramon */
+
+Alliance Cache Kernel Porting Guide
+Ramon van Handel <vhandel@chem.vu.nl>
+
+
+1.  Before you start...
+
+This document is a WORK IN PROGRESS.  As the Alliance CK is being
+developed, new things get added, and they will be added here at the same
+time (more or less.)  Don't expect to see things here that haven't been
+implemented yet.
+
+
+2.  Introduction
+
+This document was written to aid people who have decided to attempt to
+port the Alliance Cache Kernel to a hitherto-unsupported platform.  The
+Alliance Kernel Team is doing the best it can to make this job as easy as
+possible.  Platform-dependant parts of the kernel have been carefully
+separated from the platform-independant code, and the interface between
+them has been abstracted to such a degree that we hope no changes to the
+main kernel code will be required in order to support new hardware.
+
+On the other hand, we're still humans (well... human nerds.  I guess it
+depends on your defenition of 'human' ;)).  It is possible (nay, very
+likely even) that our first attempts at creating a platform-independant
+main kernel have not succeeded completely.  If you are porting the CK and
+find yourself in a situation where it is impossible, or very inefficient,
+to implement a hardware service without changing the main kernel code, we
+urge you to contact one of the CK code maintainers[1] and discuss the
+matter so further problems can be avoided in the future.
+
+It may seem from the above paragraph that there is a restriction on
+changing the main kernel code.  Please note that this is by no means the
+case.  Alliance is an open source project, and the CK will evolve as it
+may (we encourage evolution of the CK, too.)  Just, this document has been
+written to assist porters and not CK enhancers.  We would like to keep the
+two separated clearly, in order that porting will remain doable in the
+future.
+
+
+3.  The Tasks of the CK hardware-dependant part
+
+3.1.  Main tasks
+
+The hardware-dependant part of the CK is responsible for the following
+things:
+
+    - Main kernel entry point (set up kernel task, etc.)
+    - Basic initialisation of hardware subsystems (virtual memory,
+      memory micromanagement free block list, interrupt handling, hardware
+      interrupts, protection mechanisms)
+    - Virtual memory manipulation functions / protection
+    - Standard interrupt handlers (forwarding to signal handlers)
+    - Exception/Hardware interrupt handlers
+      Some of these point into the platform-independant code:
+      - Timer interrupt (scheduler)
+      - Page fault (mapping update;  note: also forwards, afterwards)
+    - Hardware dependant part of task handling:
+      - Context switching
+      - Task State structure initialisation / validation
+
+3.2.  Initialisation
+
+3.2.1.  Virtual Memory and Memory Micromanagement Free Block List Initialisation
+
+  Function:     PUBLIC VOID CKhwInitMem(VOID);
+  Called from:  Main kernel entry point
+  Notes:        As this is called from the platform-dependant part of the
+                kernel, the function name can be different.  We sugges
+                this name in order to conform with other ports.
+  Function:
+  The function of this code is bifold:
+  (i)  ## Initialise the computer's virtual memory hardware
+       This would involve creating the kernel page tables, loading them
+       into the processor, switching to paging mode, and initialising and
+       loading the processor segments.  This also initialises the 
+       memory protection for the system.  Depending on the hardware
+       platfrom, some or all of these might not need to be done (paging is
+       possibly set up in the bootloader, segments in the kernel entry
+       code.  Skip (i) if not applicable on your system.)
+  (ii) ## Initialise the kernel memory micromanagement subsystem
+       The main kernel code has a CKmemAlloc() function that allocates
+       physical memory chunks.  It is the job of (ii) to load all free
+       physical memory blocks in the system into the platform-independant
+       part using the call:
+       PUBLIC VOID CKmemAddFree(VOID *address, UADDR size);
+       Where address is the physical memory starting point of the block,
+       and size is its size.
+
+3.2.2.  Interrupt Initialisation
+
+  Function:     PUBLIC VOID CKhwInitIntr(VOID);
+  Called from:  Main kernel entry point
+  Notes:        As this is called from the platform-dependant part of the
+                kernel, the function name can be different.  We sugges
+                this name in order to conform with other ports.
+  Function:
+  The function of this code is bifold:
+  (i)  ## Initialise the computer's interrupt hardware              ____
+       Processors generally support external interrupts over a pin (INTR, 
+       for instance) that is connected to an external programmable
+       interrupt controller (PIC; for instance, i8259.)  Often the
+       interrupt hardware needs to be programmed to generate interrupts
+       like is expected.  This should be done before (ii).
+  (ii) ## Initialise the interrupt vector table
+       The processor's interrupt vector table should be initialised to
+       point to the correct CK standard interrupt/exception/trap
+       handlers.
+
+3.3.  Entry
+
+3.3.1.  Main kernel entry point
+
+  Function:     PUBLIC VOID _start(VOID);
+  Called from:  ABL
+  Notes:        This function is compiled at a fixed virtual memory
+                address (for instance 0x100000.)
+  Function:
+  This function should do anything needed to get the kernel up and running
+  (set up a stack, etc.)  This obviously depends on the state in which the
+  ABL leaves it.
+  After the processor has been set up in such a state that it is capable
+  of calling functions, _start() calls CKhwInitMem() and CKhwInitIntr() to 
+  initalise memory and interrupts.  The rest of start is devoted to
+  setting up the initial task (which will later turn into the idle task)
+  and load it into the processor.  Any other hardware-dependant
+  initialisation which does not fit anywhere else goes here, too.
+  When _start() is finished it calls the CK platform-independant entry
+  point, PUBLIC VOID CKmain(VOID).
+
+3.4. Hooks for the System Object Manager
+
+/* Continue here */
+
+4.  Standard platform-dependant types, type names and #defines
+
+5.  References
+
+[1] Currently maintaining the Alliance CK code are:
+    - Ramon van Handel <vhandel@chem.vu.nl>
+    - Jens Albretsen <jens@stejle.dk>

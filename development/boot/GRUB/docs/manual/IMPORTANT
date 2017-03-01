@@ -1,0 +1,12 @@
+  IMPORTANT SIZE LIMITS:
+
+  - For the various stage2's, if they are being loaded from a block-list
+    in the stage1, then be sure your blocklist is big enough.  The
+    automated install will generally do this for you, it's just when
+    dropping it on a raw floppy, you get the default compiled in, which
+    is 512 * 160 disk sectors, or 81920 bytes.
+
+  - For the FFS stage1.5, if you want to fit into the "bootloader" area
+    of an FFS partition, it cannot be larger than 512 * 14 disk sectors,
+    or 7168 bytes.
+

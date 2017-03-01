@@ -1,0 +1,43 @@
+The files included in this package are:
+	README			This file
+	implementation-na.c	Implementation a non corba-aware object
+	implementation.c	Implementation of a corba-aware object
+	echo.h			Include file defining the echo object
+	echo-skel.h		Include file for the echo skeleton
+	echo.skel.c		Echo Object skeleton
+	echo-server.h		Echo object Object Server header file
+	echo-server.c		Echo object Object Server
+	echo-oa.h		Echo object Object Adapter header file
+	echo-oa.c		Echo object Object Adapter
+	../include/orb.h	ORB gloabal header file
+	orb.c			ORB library source
+	client.c		Client application for Echo Object
+	prueba.c		Sample code to test conversion from object
+				references to strings and vice-versa.
+	echo-stub.h		Header file for the Echo stub library
+	echo-stub.c		Source for the echo stub library
+	ck.h			Header file for CK function
+	ck.c			IPC and run-control functions
+	Makefile		Rules for making the executables
+
+Also needed is typewrappeers.h (this is tested with release 1.2)
+
+After compilation you will get (in the binaries directory):
+	Client			An executable that performs requests on the
+				Echo object
+	libEcho-stub.so 	A DLL containing the stub functions for the 
+				Echo object
+	libORB.so		A DLL containing some of the ORB functions
+	libEcho.so		Echo implementation (CORBA aware) as a DLL
+	libEcho-na.so		Echo implementation (not CORBA aware) as a DLL
+	Echo-Server		Echo threaded implementation (containing the
+				Object Server and the Object adapter)
+
+Client support the following command line options (NYI):
+	calls N			Perform N requests on the Echo object
+	library			Use the library implementation (default)
+	thread			use the threaded implementation
+	not_aware		use a non corba aware implementation
+
+Default options are
+	Client calls 10000 library

@@ -1,0 +1,19 @@
+
+1) Allowing the same interface for KLsetTraceLevel and KLtrace: 
+   e.g. use always a string instead of a number and a string
+	 
+2) introduce a customization of KLtrace behaviour, and debugging
+   environment setup with KLsetTraceOption
+	 
+	 KLsetTraceOptions(UWORD32 flags)
+	
+	 flags: bit 0 SHOW_FILENAME instruct KLtrace to display module filename
+	        bit 1 SHOW_LINENUM  instruct KLtrace to display listing line number
+					
+3) introduce KLgetProfilingData which return the minimum quantum usable
+   to profile SK/CK code, the relative error and such data in a HW 
+	 indipendent way
+	 
+4) collate things with gdb
+	 
+	 Stefano

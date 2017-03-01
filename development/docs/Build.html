@@ -1,0 +1,148 @@
+<html>
+  <head>
+   <META HTTP-EQUIV="Content-Type" CONTENT="text/html; charset=iso-8859-1">
+   <META NAME="Author" CONTENT="Kernel Team, wrote by Stefano Costa (scosta)">
+   <META NAME="Classification" CONTENT="Drafts">
+   <META NAME="Description" CONTENT="Description of the Alliance OS build process.">
+   <META NAME="KeyWords" CONTENT="Alliance build, Alliance compiling,AllianceKernel,  Kernel, Alliance, Specs, Draft">
+   <title>Alliance OS Build Guide</title>
+  </head>
+
+<body>
+<font COLOR="Black" SIZE="3" FACE="Arial, Helvetica">
+<h2>Introduction</h2>
+When you want to generate an operating system binary build, you obviously need an environment that provides you some facilities (like shell, compiler and utilities) generally offered by an Operating System. Obviously you cannot use the same OS to the build process, since it does not necessarily exists at build time in your machine, or it may exist but in a development status that don't allow you to perform some operations. So we need two platforms: the <i>build platform</i> and the <i>target platform</i>.<p>
+Please note that with the build platform we are actually referring to two distinct components: the Operating System type and version that host our Alliance OS compilation work, and the CPU model where it will run on.<p>
+The target platform instead, since the product of the compilation is just another OS, is actually referring uniquely to the CPU model where the OS will run.<p>
+The two platform does not necessarily have to be running on the same CPU. If the build and target platform CPUs are of the same model and type, then we don't need special attention, while if the two differs, a <i>cross compilation</i> will be needed and special care in building process has to be followed. For now Alliance OS supports only builds that run on the same CPU as build environment. 
+<h2>Requirements</h2>
+The host architecture is always a Unix-like environment. There are no particular constraints on Unix flavour, though Linux in his various incarnations is currently the unique officially supported choice. Since Alliance OS is a complete, stand-alone microkernel Operating System the software requirements are relatevely little and well defined: a suitable compiler, linker, binary utilities and some tools like make, and enough free disk space. Since the GPL-oriented nature of Alliance OS all the tools supported by the build environment are GNU-based C compiler, linker and so on, so you have to provide in the host platform all those tools prior to launch the actual build environment creation described in the next section.<p>
+Exact requirement definition is a bit tricky since it depends on a number of factors, coming mostly on the specific configuration issues of the machine used as build platform. Available memory, CPU minimum processing power and graphic board issues belongs to this hard-to-define category. The best advice is following hands-on, practical experience as development machine on the target build machine. For other minimal requirements like free disk space, it is possible to fix specific requirements, which must be at least three times the size of the uncompressed Alliance OS tarball.<p>
+
+<h2>Build process</h2>
+As you may imagine, building an Operating System from scratch is a rather lengthy and complex process, where many variables are involved. Basically there are two building categories: the officially supported and the experimental ones. The officially supported are the most automatic and easy possible, while porting the Alliance OS to an unsupported platform is a totally different task. In this section we document basically the first, leaving the second for now to your guess. As a reference for successfull builds, with all relevant data like tool name and version, Linux distributions and so on, please go through the <a href="SuccessBuild.html">Alliance OS Official Builds page</a>.
+<p>
+In any case, the building process of Alliance OS must follow two fundamental steps: the <a href=#environ>environment check and creation</a> and the <a href=#compile>compilation process</b></a>. 
+
+<a name="environ"><h3>Environment check and creation</h3></a>
+As many other Open Source projects, Alliance OS uses the GNU tool <i>configure</i> in order to check the software requirements prior to generate the necessary support files and makefiles. If a required software tool is not present or is present with an unsupported version, the configure script will notify it and exit from configuration process.<p>
+To invoke configure, position the current working directory under the root of Alliance OS source base, and type <TT>./configure</TT>. A lengthy screen output will notify the user about various configure tool checks, like this snapshot:<p>
+<TT>
+stefano@linux:~> cd alliance/<br>
+stefano@linux:~/alliance> ./configure<br>
+Alliance OS source tree configuration script<br>
+--------------------------------------------<br>
+checking for egcs... no<br>
+checking if build environemnt is sane... ok<br>
+checking for awk... no<br>
+checking whether ln -s works... yes<br>
+checking for make... no<br>
+checking for ar... no<br>
+checking for as... gas<br>
+checking for objcopy... objcopy<br>
+checking for objdump... objdump<br>
+checking linker... /usr/i486-suse-linux/bin/ld<br>
+checking for gcc... gcc<br>
+checking for C compiler default output... a.out<br>
+checking whether the C compiler works... yes<br>
+checking whether we are cross compiling... no<br>
+checking for executable suffix... <br>
+checking for object suffix... o<br>
+checking whether we are using the GNU C compiler... yes<br>
+checking whether gcc accepts -g... yes<br>
+checking for dirent.h that defines DIR... yes<br>
+checking for opendir in -ldir... no<br>
+checking how to run the C preprocessor... gcc -E<br>
+checking for ANSI C header files... yes<br>
+checking for fcntl.h... yes<br>
+checking for sys/ioctl.h... yes<br>
+checking for unistd.h... yes<br>
+...<p>
+</TT>
+If everything checked by configure script is OK, a final screen that summarize main probed configurations defines is displayed:<p>
+<TT>
+------Environment definition---------------------------------<br>
+<br>
+Target CPU:     I80X86<br>
+<br>
+C compiler:     gcc --> /usr/bin/gcc<br>
+Assembler:      as --> /usr/bin/as<br>
+Object utility: objcopy --> /usr/bin/objcopy<br>
+Librarian:      ar --> /usr/bin/ar<br>
+Linker:         ld --> /usr/i486-suse-linux/bin/ld<br>
+Make:           gmake --> /usr/bin/gmake<br>
+<br>
+Final compilation flags and #defines:<br>
+CFLAGS= -Wall -g<br>
+CPPFLAGS= -DI80X86 -DREAL_ALLIANCE -DSKTRACE<br>
+ARFLAGS= cruv<br>
+</TT>
+<p>
+The <b>Target CPU</b> field display the current target HW platform that will be used to generate Alliance OS binary executables. Next the absolute pathnames of all tools used in the build process is displayed. This option is handy because it is easy to track down trivial but hard-to-fix problems related to the various constraints on tools versions. For instance the same machine may act as a build platform for several different SW projects, each one with specific requirements on supported tools. Sometimes it is needed that the same tool like the C compiler is present in two or more different versions in the same build machine, one for each SW project. Displaying the full path of the probed tools helps to get a quick compatibility check on the type of tools that will be used in the compilation process.<p>
+Finally a list of project-wide <b>#defines</b> are displayed, again as reference material for the Alliance OS builder.<p>
+If you want to use a particular, customized version of make utility, C compiler or linker you can override whatever is probed by configure utility giving some command-line options:<p>
+<TT>
+--with-make=&lt;absolute pathname of make program><br>
+--with-cc=&lt;absolute pathname of C compiler><br>
+--witn-ld=&lt;absolute pathname of linker><br>
+</TT><p>
+This option is very handy if you already have for other working purposes a different development environment different from Alliance one, and you want to retain compatibility with your main environment. You can compile/install different development tools in your home directory and force these ones as the ones to be used:<p>
+<TT>
+stefano@linux:~/alliance> ./configure --with-cc=/home/stefano/gcc3.2/bin/gcc --with-ld=/usr/bin/ld --with-make=/usr/bin/make
+</TT><p>
+In the above example, the makefiles will use as make utility, C compiler and linker the defined programs.<p>
+There are also several other options at disposal. If you want to make a build without debugging informations in the executable files (default is to include them) you can use <TT>--with-debuginfo=no</TT>, and if you want to exclude in-line tracing code (default is to include it) you can use <TT>--with-tracing=no</TT>.
+<a name="compile"><h3>Compilation process</h3></a>
+After the environment creation step is performed successfully, the next logical step is to generate the binary build. This step is composed of several subtasks: the <i>executable creation</i>, the <i>self-test</i> and the <i>binary install</i>.
+<h4>Executable creation</h4>
+The executable creation subtask do what the names hint, compile or assemble all source files (the common part and those relative to the specific CPU target defined in the environment creation process) and produce object and executable files for the target platform.<p>
+This task is perfomed running <i>make</i> in the Alliance OS root directory:<p>
+<TT>
+stefano@linux:~/alliance> ./make<br>
+for DIR in development/KL/Alloc development/KL/Memory development/KL/Msg development/KL/String development/KL/Monitor development/KL/Queue development/KL/Exec development/KL/Threads ; do (cd $DIR ; gmake) ; done<br>
+gmake[1]: Entering directory `/home/stefano/alliance/development/KL/Alloc'<br>
+gcc -DI80X86 -DREAL_ALLIANCE -DSKTRACE -I ../../include -Wall -g -O3 -o objects/FreelistAlloc.o -c FreelistAlloc.c<br>
+gcc -DI80X86 -DREAL_ALLIANCE -DSKTRACE -I ../../include -Wall -g -O3 -o objects/BitmapAlloc.o -c BitmapAlloc.c<br>
+ar rv binaries/liballoc.a ./objects/FreelistAlloc.o ./objects/BitmapAlloc.o<br>
+a - ./objects/FreelistAlloc.o<br>
+a - ./objects/BitmapAlloc.o<br>
+...<br>
+</TT>
+<p>
+If you want a less cluttered terminal printouts during executable creation process, you can run the command "<TT>./make -s</TT>", but don't do that if you are building experimental sources since it will suppress valuable diagnostic informations in case of problems.<p>
+After the executable creation step is finished (it's lengthy, so be patient),the make command will exit and you regain control of shell command prompt, and the next step can take place.
+<h4>self-test</h4>
+Since any operating System is a complex piece of software, and you need the help of several tools in order to be built correctly, many things can go wrong. The main problem is that apart compilation and linking problems, you won't notice anything until you execute the binary target, usually crashing it but sometimes crppling the target with subtle and hard to detect errors. So it is vital to test out things as early as possible in order to avoid bigger and more complex problem detection in a later phase.<p>
+Alliance OS has a self-test feature that tests out any basic library behaviour with specific software modules. Issuing the command <TT>"./make test"</TT> will start this self-test phase. The necassary targets will be compiled and automatically started. A report of each test will be output and if something goes wrong during test execution the makefile will stop and abort the whole procedure, with the offending test as the last line printed out prior to return to command prompt. The following is a snippet of self-test reporting:<p>
+<TT>
+stefano@linux:~/alliance> make -s test<br>
+<br>
+Memory library test suite<br>
+<br>
+KLmemoryCompare() OK OK OK OK OK OK OK OK OK<br>
+KLmemorySet() OK OK OK<br>
+KLmemoryCopy() OK OK OK OK OK<br>
+<br>
+String test suite<br>
+<br>
+Testing KLstringCompare() OK OK OK OK OK OK OK<br>
+Testing KLstringCopy() OK OK OK OK<br>
+Testing KLstringAppend() OK OK OK OK<br>
+Testing KLstringNumCopy() OK OK OK<br>
+Testing KLstringLength() OK OK OK<br>
+Testing KLstringMatch() OK OK OK<br>
+Testing KLstringCompareNoCase() OK OK OK<br>
+Testing KLstringFormat()This is a test<br>
+Number:  11 (should be 11)<br>
+Hex:     0xdead (should be 0xdead)<br>
+Pointer: bffff690 (address of One)<br>
+Another one: +000064 <br>
+...<br>
+</TT>
+<p>
+Of course built-in self-test are not exhaustive and never will be, but if all tests are passed there are good chances that most of the software will run fine.
+</body>
+</html>
+
+
+

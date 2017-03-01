@@ -1,0 +1,133 @@
+CK/monitor:  CK low-level monitor code
+
+This directory contains the low-level monitor code (debugger and
+profiler).  There are three things here:
+
+debugger.c:  The old CK debugging code
+             This uses x86 hardware debugging features to support
+             breakpoints/watchpoints and the like.  I don't use
+             this anymore, but it's left here for educational
+             purposes, or for if you're not so lucky to be able
+             to use the newer alternative :)
+
+gdb-stub.c:  The GDB remote debugging stub
+             This stub code allows the CK to be debugged using GDB
+             remote debugging.  If this is compiled in correctly,
+             the CK will halt in one of the first initialisation
+             phases and ask you to initiate remote GDB.  Once this
+             is done you can use all of those nice GDB features,
+             like step/brakpoints/memory watching/changing etc.
+             Don't forget to include the framepointer while 
+             compiling if you want to use backtraces !
+
+profiler.*:  The GDB profiling code
+             This doesn't work yet, but will be able to send
+             gprof-compatible files to a remote system when
+             finished.
+
+
+The following support files are provided:
+
+dbg-ser.c:   Communication code for using the PC serial port
+             I've never used this, so I don't know whether it works.
+
+dbg-par.c:   Communication code for using the PC parallel port
+             This code is used for debugging/profiling over the
+             parallel port using a parallel-null cable (also called
+             a LapLink cable.)  This is more practical than using
+             a serial nullmodem because it doesn't require you to
+             unplug your mouse and/or modem (who needs a printer,
+             anyway ? :-P).  I use this code for debugging the CK.
+
+ser-lpt.c:   GDB parallel port serial interface
+             The standard GDB distribution doesn't support debugging
+             over the parallel port.  In order to use the parallel
+             port for debugging (using dbg-par.c) you'll need to
+             recompile GDB with this file.  See below for instructions.
+
+
+Remote debugging over the parallel port with GDB:
+
+I hacked this together because I didn't want to use the serial port
+for debugging.  Interfacing with the parallel port is rather more
+difficult than interfacing with the serial port, because we have to
+do buffering and handshaking in software (and that is *fraught* with
+race conditions, believe me :)).  It should work, but if you experience
+weird results (corrupt packets, stuff like that) you should try to
+increase the DELAY values in dbg-par.c and ser-lpt.c.
+
+How to recompile GDB with parallel port support:  this works for
+GDB version 4.16, probably for other versions as well but I can't
+promise that.  Copy the file ser-lpt.c into the gdb-4.16/gdb
+directory.  Then edit the file gdb-4.16/gdb/config/i386/linux.mh
+and change the line
+
+    XDEPFILES= ser-tcp.o
+
+to
+
+    XDEPFILES= ser-tcp.o ser-lpt.o
+
+Now edit the file gdb-4.16/gdb/Makefile.in and insert the following
+line somewhere in the middle (use your intuition :)):
+
+    ser-lpt.o: ser-lpt.c $(defs_h) serial.h 
+
+Now you can run ./configure and make in the gdb-4.16/ directory,
+and you'll get a parallel-ready copy of GDB in the gdb-4.16/gdb/
+directory.
+
+How to do remote debugging over the parallel port with GDB:  follow
+the following steps.
+
+    1.  Figure out what the parallel port is on the host and target
+        machine.  The following port numbers apply:
+
+            PPort     GDB Name     I/O Data Port
+            0         lpt1         0x3bc
+            1         lpt2         0x378
+            2         lpt3         0x278
+
+        In my setup, the target machine's parallel port is lpt1
+        and the host machine's parallel port is lpt2, so I'll
+        use that as an example.
+
+    2.  Edit CK/monitor/dbg-par.c, and set the define parport
+        equal to your target machine PPort number.  In my case:
+
+            #define parport  0
+
+    3.  Compile the CK using the scripts/compile-ck script
+
+    4.  Start the CK on the target machine.  It'll halt on boot
+        with a "please initiate remote GDB" message.
+
+    5.  Start the version of GDB you compiled with parallel
+        debugging support with the CK binary:
+
+            ./gdb /alliance/development/CK/binaries/CK
+
+        A useful thing to know for CK debugging is this:  the
+        gdb commandline displayed above only loads the CK symbols
+        into GDB.  You can load additional symbols from arbitrary
+        files using the command add-symbol-file.  For instance:
+
+            add-symbol-file /alliance/development/CK/binaries/DEMO 0x2000
+
+        will load the symbols from the DEMO file at base address
+        0x2000.  This is useful for tracing errors that are
+        triggered inside other modules loaded by the ABL.
+
+    6.  Initiate remote debugging in GDB, like this:
+
+            target remote lpt2
+
+        Replace lpt2 with the name of the host parallel port.
+        The target machine should now say "debugger attached".
+
+    7.  Have fun debugging !
+
+
+Hope this is useful to all you diehard CK hackers... :)
+
+-- Ramon

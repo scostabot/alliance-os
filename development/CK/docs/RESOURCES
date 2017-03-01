@@ -1,0 +1,178 @@
+From: Ramon van Handel <vhandel@chem.vu.nl>
+To: Alliance CK List <alliance-ck@egroups.com>
+Subject:  PROPOSAL:  CK Resource Management
+
+Okay guys, after some logical thinking, I got to the conclusion that we'll
+want something like this.  So here is a little piece on my proposed CK
+resource management system.  read carefully, then comment.
+
+1.  Why resource management ?
+
+Though in the modified CK architecture as used in the Alliance Core
+System the management of most hardware resources is left up to the
+external kernels running on the system, the CK inevitably has to manage
+some of the system's resources in order to ensure integral system
+functioning.  The two most important resources (which are more or less
+platform-independant) are physical memory and traps (interrupts.)  But
+there are more.  Some are quite platform-specific.  For instance, on the
+x86 platform it might be useful to be able to allocate call gates in the
+GDT, which might be needed for reliable emulation of some platforms.
+Below is a partial list of resources that might or might not be neccessary
+for the CK to manage.
+
+Platform independant:
+- Physical memory regions
+- Traps (interrupts)
+- I/O memory regions (on systems with a separate I/O memory space)
+- DMA channels
+
+Platform dependant:
+- Call gates in GDT (x86)
+
+More resources can be thought of.  For any of these the question is, is
+resource management at CK level neccessary ?  One of the goals of the CK
+is to minimise supervisor-level complexity, and to enhance user control
+over resource management.  Obviously, we want to reduce the amount of
+resources managed by the CK.
+
+Some of the entries in the list will be discussed later on.
+
+2. Goal of this document
+
+This document describes a possible implementation of the CK resource
+management system.  The main goal for this system is to be independant of
+the type of resource managed, so that resources can be
+added/changed/deleted at will when the CK matures, and so that the system
+is independant of the underlying hardware.
+
+3. Resources
+
+All resources are managed by kernels.  In the CK, resources are associated
+with kernel objects.
+
+For loading a resource, the resource is represented by the Resource
+structure in the user address space, which is defined as follows:
+
+struct Resource {
+    DATA type;             /* Resource type                          */
+    ADDR size;             /* Size of this resource structure        */
+    VOID resource[0];      /* The resource data itself               */
+};
+
+The resource type can be defined in an enum, for instance:
+
+typedef enum {
+    PHYSREGION,
+    TRAP,
+    DMACHANNEL,
+    IOPORT,
+    CALLGATE,
+    TOTALRESOURCES
+} ResourceType;
+
+4. Allocating a resource
+
+In order to allocate a resource, the kernel must call the
+CKresourceAlloc() system call, which is defined as:
+
+DATA CKresourceAlloc(struct Resource *resource, DESCRIPTOR kernel, DATA flags);
+
+This allocates the resource specified by [resource] in the caller's
+address space to the specified kernel (the usual security restrictions
+apply.)
+
+The CKresourceAlloc starts off by determining the resource type.  Using a
+switch() statement it can handle the platform-independant resource types,
+calling the appropiate handling functions in a manner similar to the way
+currently the system object manager is coded (see objmgmt.c in the CK/
+source tree.)  Otherwise, it calls a function specified in an array of
+recource allocation functions set up by the platform-dependant part at
+startup.
+
+It is the job of the type-specific resource allocation function to set up
+a CK resource structure, defined like this:
+
+struct CKResource {
+    DATA typeSignature;    /* Resource type signature                */
+    ADDR size;             /* Size of this resource structure        */
+
+    struct Resource *next; /* Next resource of kernel with same type */
+
+    DATA flags;            /* Flags for this resource                */
+    VOID resource[0];      /* The resource data itself               */
+};
+
+Unlike CK objects, allocated resources are not kept in the user's address
+space, but in stead in the CK's address space.  The reason for this is
+that unlike with CK objects, corruption of which will merely cause the
+running thread/kernel to crash, corruption of the resources might cause
+the whole system to become unstable (for instance, a kernel could hog all
+physical memory.)
+
+The object header for each object contains an array (only used for
+kernels) of pointers to resource objects:
+
+    struct CKResource *resources[TOTALRESOURCES];
+
+These are the heads of linked lists, one for each object type.  The
+typespecific resource allocation function sets up a CKResource structure,
+and inserts it into the appropiate linked list for the appropiate kernel.
+
+The CKresourceAlloc() system call returns either 0 (on failure), or a
+'resource descriptor' (similar idea to object descriptors.)  The resource
+descriptor can be used to free the resource.  Also, the resource
+allocation might have changed the original Resource structure used for
+loading in order to communicate to the allocator the exact details of the
+allocation.
+
+5. Freeing a resource
+
+Freeing a resource can be done using the call:
+
+DATA CKresourceFree(RESOURCE res);
+
+Where res is the resource descriptor of the resource to free.
+Freeing a resource automatically returns the resource to the 'free
+resource pool' kept by the platform-dependant resource allocation code, so
+it can be allocated again by a different kernel.
+
+6.  Examples
+
+6.1.  Physical page allocation
+
+Making physical pages CK resources would replace memory space objects.  A
+kernel could request/free physical pages using the standard
+CKresourceAlloc/CKresourceFree calls.
+
+In this model:
+- Memory space objects would not be used
+- Address space objects would contain a new entry:
+      DESCRIPTOR memSK;
+  All memory space/address space operations (yank/seize etc.) would be
+  forwarded to the signal handler of this kernel.
+
+There should be two possibilities:  (1) 'allocate 10 free pages', or (2)
+'allocate the region 0xa0000-0xb0000'.  The last option can be used to
+allocate memory-mapped I/O.
+
+6.2.  Interrupts
+
+Normally, all interrupts that might occur during the runtime of a thread
+are forwarded to the signal handler of the parent kernel of that thread.
+This is not always what is wanted, though:  often hardware will use
+interrupts in order to communicate with the operating system (IRQs.)  For
+instance, it is undesirable that an interrupt caused by the serial port
+will be caught by the kernel that *happens* to be running when the
+interrupt occurs.  It should be forwarded to the IOSK.
+
+As such, it should be possible for specific kernels to catch specific
+interrupts, whenever they occur.  This should be quite simple if
+interrupts are seen as resources.
+
+6.3. I/O Ports
+
+On systems where there is a separate I/O address bus, like i386, I/O
+operations cannot be protected using the standard physical memory
+allocation mechanisms.  In stead, I/O ports can be reserved using resource
+allocation.  Allocating an I/O port typically sets the appropiate bit in
+the I/O bitmap in the kernel thread's TSS's.

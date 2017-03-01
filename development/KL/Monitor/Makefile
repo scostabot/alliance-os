@@ -1,0 +1,47 @@
+# Compile the Alliance Kernel Library
+#
+# HISTORY
+# Date     Author    Rev    Notes
+# 22/10/98 scosta    1.0    First draft
+# 13/05/02 scosta    1.1    Added right dependacy to klibs
+
+CC=gcc
+CFLAGS=-Wall -W -g
+CPPFLAGS=-DSPARC -DSKTRACE
+AR=ar
+ARFLAGS=cruv
+RM=rm -f
+
+FLAGS= -o $@ -c
+PPFLAGS= -I ../../include
+
+# We have to force here the #define of SKTRACE, since user may produce
+# a build without global trace support, but still we want to test them
+
+ifneq (-DSKTRACE, $(findstring -DSKTRACE,$(CPPFLAGS)))
+	CPPFLAGS+= -DSKTRACE
+endif
+
+# This is generic to all modules, so maybe defined externally, but in which way?
+# CPPFLAGS will be set outside, so we guarantee omogeneous compile
+
+objects/%.o: %.c ../../include/klibs.h
+	$(CC) $(CPPFLAGS) $(PPFLAGS) $(CFLAGS) $(FLAGS) $<
+
+# This is what we need to compile in this module
+
+SRCS= Trace.c TraceLevel.c LowLevelTrace.c TraceOptions.c Print.c
+
+OBJS= objects/Trace.o objects/TraceLevel.o objects/LowLevelTrace.o\
+      objects/TraceOptions.o objects/Print.o
+
+FINAL= ./binaries/libmonitor.a
+
+all: $(FINAL)
+
+$(FINAL): $(OBJS)
+	$(AR) $(ARFLAGS) $@ $(OBJS)
+
+clean:
+	$(RM) $(OBJS) $(FINAL) *~
+

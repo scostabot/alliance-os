@@ -1,0 +1,6 @@
+
+-Add queueing to communicate with LM
+
+-Build a sample LM for IOSK
+
+-Take away these KL functions currently written in iosk.c

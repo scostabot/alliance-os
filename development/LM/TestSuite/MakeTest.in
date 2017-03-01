@@ -1,0 +1,33 @@
+# Compile the Loadable Modules test suite code
+#
+# HISTORY
+# Date     Author    Rev    Notes
+# 22/05/00 scosta    1.0    First draft
+
+CC=@CC@
+PLATFORM=@PLATFORM@
+RM=@RM@
+
+FLAGS= -Wall -I ../../include -D $(PLATFORM) -o $@ -c
+
+objects/%: %.c
+	$(CC) $(FLAGS) $<
+
+# This is what we need to compile in this module
+
+SRCS= InvalidLM.c BareBoneLM.c LMinit.c LMinitUnInit.c LMprobe.c LMwithKLcall.c
+
+OBJS= objects/InvalidLM \
+      objects/BareBoneLM \
+      objects/LMinit \
+      objects/LMinitUnInit \
+      objects/LMprobe \
+      objects/LMwithKLcall
+
+all: $(OBJS)
+
+test: all
+
+clean:
+	$(RM) $(OBJS) *~
+

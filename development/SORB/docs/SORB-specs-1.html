@@ -1,0 +1,345 @@
+<HTML>
+<HEAD>
+   <META HTTP-EQUIV="Content-Type" CONTENT="text/html; charset=iso-8859-1">
+   <META NAME="Author" CONTENT="Abel Muiño Vizcaino">
+   <META NAME="GENERATOR" CONTENT="Mozilla/4.05 [en] (X11; I; Linux 2.0.35 i586) [Netscape]">
+</HEAD>
+<BODY>
+
+<H1>
+<A NAME="Top"></A>Alliance System ORB specs.</H1>
+<B><I>Release 1</I></B>
+
+<P><B><FONT SIZE=+1>Important: Note that this is an uncomplete document!!!</FONT></B>
+
+<P>
+<HR WIDTH="90%">
+<H2>
+<B><I>Index</I></B></H2>
+
+<OL>
+<LI>
+<A HREF="#Intro">Introduction</A></LI>
+
+<LI>
+<A HREF="#Goals">Goals</A></LI>
+
+<LI>
+<A HREF="#Guidelines">Alliance Coding Guidelines</A></LI>
+
+<LI>
+<A HREF="#Dual Syntax">Dual Syntax</A></LI>
+
+<LI>
+<A HREF="#CORBA components">Implementation of CORBA components</A></LI>
+
+<OL>
+<LI>
+<A HREF="#IDL Compiler">IDL compiler</A></LI>
+
+<LI>
+<A HREF="#Subs">Stubs</A></LI>
+
+<LI>
+<A HREF="#ORB">ORB</A></LI>
+
+<LI>
+<A HREF="#Servers">Object Servers</A></LI>
+
+<LI>
+<A HREF="#OA">Object adapters</A></LI>
+
+<LI>
+<A HREF="#Skeletons">Skeletons</A></LI>
+</OL>
+
+<LI>
+<A HREF="#Routing Requests">Routing requests</A></LI>
+
+<LI>
+<A HREF="#References">References</A></LI>
+
+<LI>
+<A HREF="#History">Document History</A></LI>
+</OL>
+
+<DIV ALIGN=right><A HREF="#Top">[Top]</A></DIV>
+
+<CENTER>
+<HR ALIGN=RIGHT WIDTH="90%"></CENTER>
+
+<H2>
+<A NAME="Intro"></A>Introduction</H2>
+&nbsp;&nbsp;&nbsp; This document will set the guidelines that will be used
+for coding the System ORB. This includes defining the complete route of
+the requests peformed by the clients, as well as specifying the way responses
+go back to the caller. Note that this can involve using IPC methods. This
+paper will not discuss how IPC must be implemented, not which part of the
+system should implement it. IPC has, anyway, to be present for the SORB
+to work.
+
+<P>&nbsp;&nbsp;&nbsp; Also is the purpose of this document to define the
+shape that CORBA components will take, and how are they integrated into
+a compiled binary.
+<BR>&nbsp;
+<DIV ALIGN=right><A HREF="#Top">[Top]</A></DIV>
+
+<H2>
+
+<HR ALIGN=RIGHT WIDTH="90%"><BR>
+<A NAME="Goals"></A>Goals</H2>
+&nbsp;&nbsp;&nbsp; The objective of the System ORB is to act as an interface
+between the diferent Alliance Kernel objects, allowing them to be distributed,
+or to be managed from a remote machine. This functionality is to be achieved
+by adopting OMG CORBA as the backbone of the communication in the Alliance
+core system. This aproach will also benefict the development of distributed
+aplications, as the CORBA functionality is also provided to the applications
+running on top of an Alliance system in a transparent but limited way (by
+using the <I>dual syntax</I>) or in a explicit and complete way (by using
+the IDL language mappings provided)
+
+<P>&nbsp;&nbsp;&nbsp; The System ORB must be optimized and be as fast as
+possible in order to make the whole system fast. This will lead sometimes
+to developping native protocols and reduce the number of calls. When this
+optimizations lead to uncompabiilities with the CORBA specification, a
+paralell CORBA compliant method or some CORBA compliant wrappers must be
+provided.
+<BR>&nbsp;
+<DIV ALIGN=right><A HREF="#Top">[Top]</A></DIV>
+
+<H2>
+
+<HR ALIGN=RIGHT WIDTH="90%"></H2>
+
+<H2>
+<A NAME="Guidelines"></A>Alliance Coding Guidelines</H2>
+&nbsp;&nbsp;&nbsp; As the CORBA specification sets the function names for
+the IDL defined function, and the Alliance Kernel has its own coding guidelines,
+which specify a format for naming C language structures (functions, types,
+variables...) a compromise must be taken between both.
+
+<P>&nbsp;&nbsp;&nbsp; This compromise means using the CORBA languaje mapping
+when applicable (when writing an implementation or when calling them, as
+well as in the generated stubs and skeletons), and follow the Alliance
+Coding Guidelines in any other case.
+<DIV ALIGN=right><A HREF="#Top">[Top]</A></DIV>
+
+<HR ALIGN=RIGHT WIDTH="90%">
+<H2>
+<A NAME="Dual Syntax"></A>Dual Syntax</H2>
+
+<DIV ALIGN=right><A HREF="#Top">[Top]</A></DIV>
+
+<H2>
+
+<HR ALIGN=RIGHT WIDTH="90%"><BR>
+<A NAME="CORBA components"></A>Implementation of CORBA components</H2>
+&nbsp;&nbsp;&nbsp; While it would be a good thing to base the SORB completely
+in existing ORBs, it seems like we are not gooing to be able to do so.
+Flick<SUP><A HREF="#Flick">(1)</A></SUP>(used for the Flux kernel<SUP><A HREF="#Flux">(2)</A></SUP>)
+has an IDL compiler that seems to generate the most optimized stubs, but
+it only provides GNU license to the IDL compiler, while the accompaning
+library is under a modified verion of the BSD license. Also, it is only
+CORBA 2.0 compliant.
+
+<P>&nbsp;&nbsp;&nbsp; In the other hand, ORBit<SUP><A HREF="#ORBit">(3)</A></SUP>
+(part of the Gnome project) is fully under GNU license, and CORBA 2.2 compliant,
+so we can use it to "fill the gaps". Anyway, the compatibility between
+both ORBs has not been checked, and will probably be very low (as the inners
+of each ORB are not defined in the CORBA specs), so here are some guidelines
+to follow when developping our own CORBA components.
+<DIV ALIGN=right><A HREF="#Top">[Top]</A></DIV>
+
+<H3>
+
+<HR ALIGN=RIGHT WIDTH="40%"><BR>
+<A NAME="IDL Compiler"></A>IDL compiler</H3>
+&nbsp;&nbsp;&nbsp; It is very possible that we end using the Flick IDL
+compiler. This compiler generates very optimized stubs but still requires
+an ORB library (called the ORB Run-time library) to link against.
+
+<P>&nbsp;&nbsp;&nbsp; The IDL compiler will generate function namesacording
+to the Alliance coding guidelines in addition to those according to the
+CORBA language mappings. For a description about how this will be done,
+read above the section "<A HREF="#Guidelines">Alliance Coding Guidelines</A>"
+
+<P>&nbsp;&nbsp;&nbsp; An additional tool must be designed to compile the
+generated files and to register them so they are available to other CORBA
+applications.
+<BR>&nbsp;
+<DIV ALIGN=right><A HREF="#Top">[Top]</A></DIV>
+
+<H3>
+
+<HR ALIGN=RIGHT WIDTH="90%"><BR>
+<A NAME="Subs"></A>Stubs</H3>
+&nbsp;&nbsp;&nbsp; Stubs are dessigned for eficiency. They should be able
+to build and deliver the requests at the fastest speed, as the overall
+system performance depends on this. To allow transparent use of new versions
+of objects (without recompiling the whole client application) stubs will
+be compiled as dynamic link libraries.
+
+<P>&nbsp;&nbsp;&nbsp; The executuon of the stubs will be the following:
+<OL>
+<LI>
+Find the object information stored in the IR. The stub should return an
+error if the object can not be found. Optionally, a validation of the types
+and number of the arguments can be done (this validation will always be
+succesful, unless an uncomplete installation of a new version has been
+done). This check could also be substituted by including version information
+in the IDL definition by using the <B>#pragma <I>&lt;name> &lt;major>.&lt;minor></I></B>
+directive.</LI>
+
+<BR>This operation will be implemented in the run-time ORB library, and
+will only be called once for a given object, meaning that the results are
+cached inside the llibrary. A entrypoint must exist in the comiled stub
+for updating the object info (using this entrypoint will require using
+some external program, probably the same that performs the install/uninstall
+process). Note that storing this info, and the posibility that it might
+change will require some concurrency control. The classic solution for
+the readers&amp;writers problem (with priority for writers) could be applied
+here.
+<LI>
+Determine if the object is local or remote. This can be known from the
+Object Reference. A possible format could be</LI>
+
+<BR><TT><NOBR>struct IOR {</NOBR></TT>
+<BR><TT><NOBR>&nbsp;&nbsp;&nbsp; BOOLEAN local;&nbsp;&nbsp; /* the implementation
+is in the local machine&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+*/</NOBR></TT>
+<BR><TT><NOBR>&nbsp;&nbsp;&nbsp; BYTE&nbsp;&nbsp;&nbsp; ip[4];&nbsp;&nbsp;
+/* IP address of the machine that can process the request */</NOBR></TT>
+<BR><TT><NOBR>&nbsp;&nbsp;&nbsp; CORBA_Scoped_Name sn;&nbsp; /* Scoped
+name of the object in the IR&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+*/</NOBR></TT>
+<BR><TT><NOBR>&nbsp;&nbsp;&nbsp; BYTE&nbsp;&nbsp;&nbsp; flags;&nbsp;&nbsp;
+/* 0x1 set if the target ORB is a SORB</NOBR></TT>
+<BR><TT>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+* 0x2 set if the implementation is known to be a library</TT>
+<BR><TT>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+* 0x4 set if the implementation is CORBA aware */</TT>
+<BR><TT><NOBR>};</NOBR></TT>
+<BR>The first field will determine whether to use TCP or a local memory-based
+IPC method for delivering the request. If the request is locally served,
+the <I>url</I> field is not checked, so it needs not to be filled when
+reading the structure (this will give us some nanoseconds more :-). The
+<I>sn</I> field will give us the hability to perform a quick lookup in
+the IR and build a list of methods provided by the object by using:
+<BR><TT><NOBR>/* "ir" is our interface repository object</NOBR></TT>
+<BR><TT><NOBR>&nbsp;&nbsp; "sn" is the scoped name for the object we want,
+obtained from the IOR */</NOBR></TT>
+<BR><TT><NOBR>CORBA_Contained&nbsp;&nbsp;&nbsp; interface;</NOBR></TT>
+<BR><TT><NOBR>CORBA_ContainedSeq methods;</NOBR></TT>
+
+<P><TT><NOBR>interface = CORBA_lookup(ir, sn, &amp;environment);</NOBR></TT>
+<BR><TT><NOBR>methods = CORBA_contents (interface, CORBA_dk_Operation,
+CORBA_False, &amp;environment);</NOBR></TT>
+
+<P>Now we have all the method descriptors (other IR objects) for the methohds
+provided by the object in <I>methods</I> which is a CORBA sequence.
+<BR>This can be changed to use SORB-specific functions (instead of <I>CORBA_lookup</I>
+and <I>CORBA_contents</I>) for greater performance (returning a C structure
+defining the function we want, instead of a CORBA sequence), while keeping
+the CORBA compliant ones for use of applications.
+<LI>
+Build the request. This will be done using a "flat image" with all the
+parameters optimally (32 bit) alligned. In the first possition of this
+image there will be stored the index number of the function being called
+(in the order returned by the IR). Note that this can also be obtained
+once and used many times (having some concurrency control, like above).
+When possible (no variable length parameters, like strings, are used) the
+memry for this flat image should be allocated once and reused. For variable
+length types some reallocations can be avoided by using a (pre-allocated)
+bigger buffer when this does not increases the transmission of the message
+in a significant ammount of time.</LI>
+
+<LI>
+Deliver the request. If local, send the "flat image" containing the request
+by IPC, if remote, send it using the NetSK over TCP (using IIOP if <I>isSORB</I>
+is false). The functions needed for sending the request will be on the
+run-time library.</LI>
+</OL>
+
+<DIV ALIGN=right><A HREF="#Top">[Top]</A></DIV>
+
+<H3>
+
+<HR ALIGN=RIGHT WIDTH="90%"><BR>
+<A NAME="ORB"></A>ORB</H3>
+&nbsp;&nbsp;&nbsp; The ORB will not exist as an idependent piece of code.
+Instead, the ORB functionality will be shared by stubs, a run time library
+and the skeletons, allowing greater optimization. Note that, as every Alliance
+executable will be linked to some stubs (those of the SKs and CK, at least),
+every executable can access every CORBA standarized ORB function, so we
+will still provide a fully compliant CORBA 2.2 implementation.
+
+<P>&nbsp;&nbsp;&nbsp; Other frequently used CORBA interfaces (in addition
+to the ORB one) will also be included in this library, like the set of
+interfaces required for the Interface Repository. Less frequent interfaces
+(like the Dynamic Invocation one) can be provided as a separate library.
+<BR>&nbsp;
+<DIV ALIGN=right><A HREF="#Top">[Top]</A></DIV>
+
+<H3>
+
+<HR ALIGN=RIGHT WIDTH="90%"></H3>
+
+<H3>
+<A NAME="Servers"></A>Object servers</H3>
+
+<DIV ALIGN=right><A HREF="#Top">[Top]</A></DIV>
+
+<HR ALIGN=RIGHT WIDTH="90%">
+<H3>
+<A NAME="OA"></A>Object adapters</H3>
+
+<DIV ALIGN=right><A HREF="#Top">[Top]</A></DIV>
+
+<HR ALIGN=RIGHT WIDTH="90%">
+<H3>
+<A NAME="Skeletons"></A>Skeletons</H3>
+
+<DIV ALIGN=right><A HREF="#Top">[Top]</A></DIV>
+
+<H2>
+
+<HR ALIGN=RIGHT WIDTH="90%"><BR>
+<A NAME="Routing Requests"></A>Routing requests</H2>
+
+<DIV ALIGN=right><A HREF="#Top">[Top]</A></DIV>
+
+<H2>
+
+<HR ALIGN=RIGHT WIDTH="90%"><BR>
+<A NAME="References"></A>References</H2>
+
+<OL>
+<LI>
+<A NAME="Flux"></A><B>Flux kernel</B>:</LI>
+
+<BR><A HREF="http://www.cs.utah.edu/projects/flux/">http://www.cs.utah.edu/projects/flux/</A>
+<LI>
+<A NAME="Flick"></A><B>Flick ORB</B>:</LI>
+
+<BR><A HREF="http://www.cs.utah.edu/projects/flux/flick/">http://www.cs.utah.edu/projects/flux/flick/</A>
+<LI>
+<A NAME="ORBit"></A><B>ORBit</B>:</LI>
+
+<BR>Info at: <A HREF="http://www.labs.redhat.com/orbit/">http://www.labs.redhat.com/orbit/</A>
+<BR>Download from: <A HREF="ftp://ftp.gnome.org/pub/ORBit/ORBit-0.2.tar.gz">ftp://ftp.gnome.org/pub/ORBit/ORBit-0.2.tar.gz</A>
+<LI>
+<A NAME="OMG"></A><B>OMG home page:</B></LI>
+
+<BR><A HREF="http://www.omg.org">http://www.omg.org</A></OL>
+&nbsp;
+<DIV ALIGN=right><A HREF="#Top">[Top]</A></DIV>
+
+<HR ALIGN=RIGHT WIDTH="90%">
+<H2>
+<A NAME="History"></A>Document History</H2>
+
+<DIV ALIGN=right><A HREF="#Top">[Top]</A></DIV>
+
+<HR ALIGN=RIGHT WIDTH="90%">
+</BODY>
+</HTML>

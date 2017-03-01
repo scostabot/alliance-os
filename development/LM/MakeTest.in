@@ -1,0 +1,39 @@
+# Compile the Alliance Kernel LM library Tester
+#
+# HISTORY
+# Date     Author    Rev    Notes
+# 06/12/98 scosta    1.0    First draft
+
+CC=@CC@
+CPPFLAGS=@CPPFLAGS@
+CFLAGS=@CFLAGS@
+RM=@RM@
+
+FLAGS=  -o $@ -c
+PPFLAGS= -I ../include -I include
+
+LIBS = -Lbinaries -L../KL/Monitor/binaries -L../KL/String/binaries \
+       -L../KL/Memory/binaries -L../KL/Exec/binaries \
+       -llm -lexec -lmonitor -lstring -lmemory
+OFLAGS= -o
+
+SRCS= LoadModTester.c
+
+objects/%.o: $(SRCS) ../include/lm.h ../include/klibs.h ../include/testreport.h
+	$(CC) $(CPPFLAGS) $(PPFLAGS) $(CFLAGS) $(FLAGS) $<
+
+OBJS= ./objects/LoadModTester.o
+
+FINAL= ./binaries/TestLM
+
+$(FINAL): $(OBJS) ./binaries/liblm.a ../KL/Monitor/binaries/libmonitor.a\
+          ../KL/Memory/binaries/libmemory.a ../KL/String/binaries/libstring.a\
+          ../KL/Exec/binaries/libexec.a
+	$(CC) $(OBJS) $(LIBS) $(OFLAGS) $@
+
+test:
+	$(FINAL)
+
+clean:
+	$(RM) $(OBJS) $(FINAL)
+

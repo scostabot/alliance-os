@@ -1,0 +1,38 @@
+# Compile the Alliance Kernel Monitoring Facilities Tester
+#
+# HISTORY
+# Date     Author    Rev    Notes
+# 10/02/99 scosta    1.0    First draft
+
+CC=gcc
+CFLAGS=-Wall -W -g
+CPPFLAGS=-DSPARC -DSKTRACE
+AR=ar
+ARFLAGS=cruv
+RM=rm -f
+
+FLAGS= -o $@ -c
+PPFLAGS= -DSKTRACE -I ../../include 
+
+#  Part of LIBS will be set outside, so we guarantee omogeneous compile
+
+LIBS = -L../String/binaries -Lbinaries -lmonitor -lstring
+OFLAGS= -o
+
+objects/%.o: %.c
+	$(CC) $(CPPFLAGS) $(PPFLAGS) $(CFLAGS) $(FLAGS) $<
+
+SRCS= MonitorTester.c
+
+OBJS= objects/MonitorTester.o
+
+FINAL= ./binaries/TestMonitor
+
+$(FINAL): $(OBJS) binaries/libmonitor.a
+	$(CC) $(OBJS) $(LIBS) $(OFLAGS) $@
+
+test:
+	$(FINAL)
+
+clean:
+	$(RM) $(OBJS) $(FINAL)

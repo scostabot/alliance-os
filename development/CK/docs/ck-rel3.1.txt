@@ -1,0 +1,648 @@
+NOTE:  This document is (very) outdated.  Basics are here, but lots has
+changed, too.  A new version is in the making, but won't be ready for a
+while (currently, coding takes precedence.)   -- Ramon
+
+
+Alliance Cache Kernel Specification, Release 3.1
+By Rudy Gingles, Ramon van Handel
+
+Index
+                                       
+1. Introduction
+2. System Object Manager
+   2.1. Address Space Objects
+   2.2. Thread Objects
+   2.3. Kernel Objects
+   2.4. System Calls
+3. Thread Scheduling Subsystem
+   3.1. System Calls
+4. Inter-Object Communication Subsystem
+   4.1. Message Passing
+   4.2. Interrupt Handling
+   4.3. System Calls
+5. Virtual Memory Management Subsystem
+   5.1. Paging
+   5.2. Segments
+   5.3. EK Memory Management
+   5.4. Memory Allocation
+   5.5. System Calls
+6. CK System Calls
+7. Evaluation
+8. References
+9. Revisions
+
+
+1. Introduction
+
+This document details the Cache Kernel to be used in the Alliance
+operating system core.  This Alliance Cache Kernel (henceforth CK) is
+based on a modified version of Stanford's Caching Model of Operating
+System Functionality[1].  An overview of this model is given in the
+Alliance General System Specification[2].
+
+The Stanford Paper[1] defines the CK as follows.  The Cache Kernel acts
+as a cache for three types of operating system objects: address spaces,
+threads and kernels. It holds the descriptors for the active subset of
+these objects, executing the performance-critical actions on these
+objects.
+
+Moreover, it mentions as goal for this that the "caching model reduces
+supervisor-level complexity, provides application control of resource
+management and provides application control over exception conditions
+and recovery, addressing the problems with micro-kernel designs to
+date".  With this goal in mind, we try to reduce the complexity of the
+CK to a minimum (by reducing the amount of system calls to a minimum.)
+
+The Alliance Cache Kernel consists of four subsystems, each with its
+own functions and data structures.
+
+The first subsystem is the System Object Manager.  The System Object
+Manager (henceforth the SOM) performs the actual caching of the three
+object types, threads, address spaces and kernels.  It is the heart of
+the system. (The Alliance core system also includes a fourth type of
+object, the loadable module which is used to extend AKs and SKs at
+runtime. This type is not cached by the CK, though.  It is described in
+detail in the LM specs[6].)
+
+The other three subsystems perform the performance-critical actions on
+the objects loaded into the SOM.  They are the Thread Scheduling
+Subsystem, the Virtual Memory Management Subsystem, and the
+Inter-Object Communication Subsystem.
+
+All subsystems run simultaneously, and so must be designed fairly
+independent of each other to avoid data corruption, though they
+often use each other's functions and structues, too (for instance,
+the IOC Subsystem needs to be able to change page mappings.)  Although
+we will discuss them seperately here for simplicity, they are all
+integrated parts of the whole CK, not actually separate modules.
+   
+
+2. System Object Manager
+
+This subsystem manages the caching of system objects within the CK.
+System objects are data representations of the address spaces, threads,
+and kernels currently being used on the system. The caching model
+allows these objects to be selectively cached within the CK at any time
+by the sub-kernels (SKs and AKs, hereafter referred to as External
+Kernels, EKs) controlling the particular object, giving them more
+control over memory management, thread scheduling and inter-process
+communication, and greatly simplifying the tasks of the CK.
+   
+All objects are created and managed by the EKs, and reside somewhere in
+the EK's address space. To 'load' an object into the CK, the EK simply
+passes to it a pointer to the object, along with any other info. The CK
+then takes this pointer, checks that it points to a valid object, and
+constructs an Object Header, a fixed-size structure containing
+important info the CK needs to use the object. These object headers
+are stored in the Object Header Array (OHA). Object headers have the
+following structure:
+
+struct objectHeader {
+   WORD32 objectSignature;  /* Object Signature */
+   ADDRSZ objectSize;       /* Object Size in bytes */
+   WORD32 flags;            /* Miscellaneous flags */
+   DESCRIPTOR parentKernel; /* Descriptor of parent kernel */
+   WORD32 dependants;       /* Number of dependency objects */
+   ADDRSZ firstDependant;   /* Pointer to first dependent object (in OHA) */
+   ADDRSZ nextObject;       /* Pointer to next peer object (in OHA) */
+   ADDRSZ objectData;       /* Pointer to the object itself */
+};
+
+(ADDRSZ is the size of a memory address.  This is 32 bits on the i386
+platform, but may be bigger on other platforms.  It can probably be
+#defined as void *.)
+
+The object signature is used for minor checking that the EK loads a
+valid object, as well as checking that valid descriptors are passed to
+the CK. The parent kernel indicates the kernel responsible for this
+object. Dependency objects are objects which must be unloaded first in
+order for the current object to be unloaded.
+
+The flags record various data about the object.  A use of the flags is,
+for instance, recording whether a kernel object is an SK or an AK (the
+only difference is the protection level, or on i386 machines the ring, in
+which they run.)
+   
+Once the Object Header has been constructed, the CK returns to the EK
+a descriptor, a unique number which identifies the object to the CK
+while loaded. This is used by the EK to later unload the object from
+the CK. Every time an object is cached, it is assigned a new
+descriptor, therefore descriptors shouldn't be used at all by the EK
+except for interfacing to the CK.  (To keep it simple and fast,
+descriptors may simply be pointers to the object within the CK's
+address space.  This might clash with Persistance[7], though.) 
+   
+Once an object has been cached into the CK, it becomes active, which
+means it becomes candidate for being worked on by any of the other CK
+subsystems. For example, a thread object cached into the CK
+automatically gets scheduled to execute. Likewise when an object is
+uncached from the CK, it becomes inactive, and is completely ignored
+by the CK. For example, if we uncached our previously cached thread
+object, it would no longer be scheduled to execute. To the CK, it no
+longer exists. If you later recache the thread object, the CK will see
+it as a completely new object, and will assign it a new descriptor. To
+uncache an object, the EK simply supplies the CK with the appropriate
+descriptor, which the CK uses to first make sure the EK is allowed
+access to the object, and then to find the object within the OHA and
+remove it.
+   
+Each of the three different kinds of system objects are described
+below.
+   
+2.1. Address Space Objects
+  
+Address space objects represent the address spaces in use by the
+threads and kernels running on the system. An address space object has an
+object signature of 'AlOA' (Alliance Object - Address space), and consists
+of the complete page table system as provided by the target processor's
+virtual memory hardware.  For instance, on machines based on the Intel
+80x86 (x>2) line of processors (henceforth i386) the Address Space Object
+consists of the i386 Page Directory and Page Tables which map the
+virtual-to-physical address translations on this platform. These mappings
+are checked by the CK when the object is loaded to make sure they are
+within the EK's allocated physical address range.
+   
+Like other objects, Address Space objects stay within EK memory while
+loaded. This gives the EK control over its threads' memory management
+(not its own, as the EK's page tables do not reside in its own address
+space) up to a certain extent.  See section 5.4.
+   
+2.2. Thread Objects
+  
+Thread objects represent the threads running on the system, whether
+they be program threads or kernel threads. A thread object has an
+object signature of 'AlOT' (Alliance Object - Thread), and consists
+mainly of the thread's processor state structure as provided by the
+target hardware (on the i386 platform, this is an i386 TSS, which
+holds the thread's registers, kernel stack location, Page Directory
+pointer, etc.), as well as the thread's priority and the descriptor
+of an address space object.  It also has a pair of Inter-Object
+Communication (henceforth IOC) buffers, which are for use of kernel
+threads and Alliance native applications only (used by the System ORB
+for outgoing requests), and are set to NULL on threads running on
+AEAKS.  All other thread info is managed by the EKs (including IPC.)
+Thread objects have the following structure:
+
+struct threadObject {
+   DESCRIPTOR addressSpace;  /* Descriptor of the thread's address space */
+   struct TSS taskState;     /* The thread's processor state (on i386) */
+   ADDRSZ inBuffer;          /* Pointer to incoming IOC buffer */
+   ADDRSZ outBuffer;         /* Pointer to outgoing IOC buffer */
+   BYTE priority;            /* The thread's scheduling priority */
+   BYTE reserved[3];         /* ALLIANCE RESERVED: DO NOT USE */
+};
+
+Before loading the thread into the CK, the CK must check that the Address
+Space object is valid, and that the TSS Page Directory points to it.
+   
+2.3. Kernel Objects
+  
+Kernel objects represent the System Kernels and Application Kernels
+currently loaded on the system. A kernel object has an object
+signature of 'AlOK' (Alliance Object - Kernel), and consists of
+descriptors for the kernel's signal/interrupt handler Thread and ORB 
+thread objects as well as CK scrap space for kernel management,
+pointers to incoming and outgoing IOC buffers for use of the ORB thread
+for incoming requests, the address space the IOC buffers reside in, and
+an IOR for communication over the ORB.
+Kernel objects have the following structure:
+
+struct kernelObject {
+   ADDRSZ inBuffer;       /* Pointer to incoming IOC buffer */
+   ADDRSZ outBuffer;      /* Pointer to outgoing IOC buffer */
+   DESCRIPTOR IOCASpace;  /* Address space in which the IOC buffers reside */
+   DESCRIPTOR ORBThread;  /* Descriptor of ORB thread */
+   DESCRIPTOR sigThread;  /* Descriptor of Signal/Interrupt handler thread */
+   struct IOR kernelIOR;  /* CORBA IOR */
+
+   /* CK Scratch Space: */
+   WORD32 pageUsage;      /* Current page usage count */
+   WORD32 pageAllocation; /* Total page allocation count */
+   BYTE processorAlloc;   /* Processor allocation percentage */
+   BYTE maxPriority;      /* Maximal thread priority */
+   BYTE reserved[2];      /* ALLIANCE RESERVED: DO NOT USE */
+};
+
+The CK scrap space allows the CK to record how many pages of memory
+the kernel has allocated, how many of them have been used, what
+percentage of the processor this kernel and all its threads get, and
+the maximum allowable priority for all threads.
+   
+Before a Kernel object can be loaded, at least two thread objects (and
+one address space object) must be created for it.
+
+The kernel's signal handler is responsible for handling not only
+signals from the CK, but also traps and exceptions from it's threads. Upon
+entry into the signal handler, the CK places two DWORDS onto the stack,
+identifying the type of signal it needs to handle, and either the
+descriptor of the thread that caused the exception, or -1 if it is a
+signal from the CK.  The signal handler then forks (a fork() function is
+provided by the EK libraries) in order to be able to handle multiple traps
+at the same time. The signal handler child can then branch out to it's 
+appropriate routine to handle the situation.  (Perhaps a better solution
+is that the signal handler runs in the context of the originator thread of
+the trap.)
+
+2.4.  System Calls
+
+The following system calls are provided by the System Object Manager:
+
+WORD32 CKcacheObject(ADDRSZ object, WORD32 signature, ADDRSZ size,
+                     DESCRIPTOR dependant, WORD32 flags);
+                           /* Caches the specified object into the CK   */
+                           /* object:    Pointer to object to be cached */
+                           /* signature: Object type (i.e. 'AlOA')      */
+                           /* size:      Object size (in bytes)         */
+                           /* dependant: Descriptor of dependent object */
+                           /* flags:     Flags                          */
+                           /*                                           */
+                           /* Returns: Value > 0: Descriptor for object */
+                           /*          Value < 0: Error code            */
+
+WORD32 CKunCacheObject(DESCRIPTOR object);
+                           /* Unloads a prev. loaded object from the CK */
+                           /* object: Object descriptor to be unloaded  */
+                           /*                                           */
+                           /* Returns:  0 = OK, otherwise error code    */
+
+
+3. Thread Scheduling Subsystem
+
+This subsystem manages the scheduling of the threads curently loaded into
+the CK. The scheduler has many tasks; The scheduler is not only
+responsible for determining what threads get to run and when, but also
+records processor usage by threads running under the various kernels,
+etc.
+   
+The scheduler itself acts like a small cache-kernel like entity towards
+the other CK subsystems. When a new thread is loaded into the System
+Object Manager, the SOM in its turn loads a cut down version of the thread
+object into the thread scheduler. The scheduler thus maintains its own
+thread list, which makes it much more efficient.  When a thread blocks, it
+is the task of the SOM to unload it from the scheduler.
+
+The Alliance Thread Scheduler is a QNX-style timesharing scheduler which
+has special provisions for real-time threads with soft deadlines (for
+instance multimedia applications.)  The details of the scheduler are
+discussed in the Alliance Thread Scheduling Subsystem second-level CK
+specification[3].
+
+3.1.  System Calls
+
+Most functions of the scheduler are used through the SOM; when a thread
+gets loaded into the SOM, the SOM loads it into the scheduler.  The
+scheduler does provide system calls for loading deadlines for real-time
+threads.  These are still to be specified.
+
+
+4. Inter-Object Communication Subsystem
+
+The IOC subsystem has two tasks:  message passing and interrupt handling.
+
+4.1.  Message Passing
+
+The IOC subsystem manages all communication between kernel threads,
+Alliance Native application threads, and kernels (kernel ORB threads,
+through the kernel IOC buffers.)  The IOC subsystem is primarily used by
+the System ORB which is linked to every Alliance Native (kernel) thread.
+The EKs use the ORB as a communication backbone, and thus will rarely have
+to access the CK IOC facilities directly.  As such, the Alliance CK IOC is
+optimised for use with the ORB (the details are discussed in the Alliance
+System ORB Specification[4].)
+
+The IOC method which is used in the Alliance Cache Kernel here uses
+neither data copying nor shared memory, but instead uses a method of
+page switching. This should have all the speed benefits of shared memory
+IOC, but is much less complex.
+   
+All EKs and threads contain two buffers for IOC within their address
+space, a buffer for incoming messages and a buffer for outgoing messages.
+The address of these buffers is set when the EK's kernel object is loaded,
+and both buffers are one page in size.
+
+To send a message, the sender provides the CK with the descriptor of the
+receiver.  The CK then checks whether the the receiver has done a receive
+call.  There are two types of receive calls:  blocking and nonblocking
+receive calls.
+
+If the receiver has done a blocking receive calls the CK simply switches
+the page mappings between the sender's outgoing buffer and the receiver's
+incoming buffer, effectively moving the data. It then zeros the sender's
+new outgoing buffer for security reasons (perhaps this isn't neccessary,
+as most messages won't need to be secure.  If the receiver EK is worried
+about security issues, it can zero its incoming buffer before calling
+receive(). This saves time in most cases.)  It unblocks the receiver and
+normal operation continues.  In its time slice, the receiver can handle
+the message.
+
+If the receiver has done a nonblocking call, basically the same procedure
+is followed.  The only difference is, that in stead of unblocking the
+receiving thread (which is in this case unblocked anyway and probably
+doing something we don't want to disturb it with,) the thread's parent
+kernel is sent a signal that its thread has received a message (see blow
+for a not on messaging a kernel.) It is then up to the parent kernel's
+signal handler and the thread to handle the rest.
+
+If the receiver has not done a receive, the CK checks which kind of send()
+the sender has called.  If the sender has called a nonblocking send call,
+the CK will store the message within CK memory, switching pages with the
+sender as usual to free it up. The CK will then automatically transfer the
+message to the receiver when it is ready. The CK can only store a certain
+number of messages in it's memory; once that limit is reached, an error
+code will be returned to the sender.
+If the sender has called a blocking send call, the sender will simply be
+blocked until the message can be sent.
+   
+When the sender sends a message, is has to specify the descriptor of the
+target object.  This can be either a thread descriptor or a kernel
+descriptor.  If it is a thread descriptor, the process goes like specified
+above.  If it is a kernel object, basically the same happens, except that
+that the ORB thread is used as target thread.  Moreover, the ORB thread
+has to have done a special receive call that doesn't listen to the normal
+thread IOC buffers, but to the kernel's IOC buffers.  This kind of receive
+is only allowed to be done by the ORB thread.
+
+To facilitate the finding of object servers (EKs) for the ORB, each kernel
+object contains an IOR.  There is a CK function for matching an IOR with
+an object descriptor suitable for sending messages.  Usually, 'new'
+messages are only sent to kernels;  the ORB thread can then return a
+message to the thread, from which its received message originated.  Other
+descriptor searching mechanisms can be provided at EK level.
+
+4.2. Interrupt Handling
+
+The IOC subsystem is also responsible for handling any traps or
+exceptions, as well as hardware interrupts.  The IOC subsystem maintains
+the Interrupt Table for the target platform (on i386, the Interrupt
+Descriptor Table.)  It contains standard interrupt handlers.  These
+handlers check where the trap originated, where it should go to,
+blocks the originator (if it is a software interrupt,) converts the trap
+to a signal and signals the appropiate signal/interrupt handler thread as
+specified in section 2.3. (the signal handler should unblock the blocked
+thread.)  Most interrupts are redirected to the signal handler of the
+originator's parent kernel; but the IOC subsystem provides a system
+function that SKs (and ONLY SKs) can use to 'hook' a specific interrupt to
+their own signal handler.  This would be used for catching hardware
+interrupts.
+
+4.3.  System Calls
+
+The following system calls are provided by the Inter-Object Communication 
+Subsystem:
+
+WORD32 CKblkSendMsg(DESCRIPTOR receiver);
+                           /* Sends a message; blocks until sent        */
+                           /* receiver: receiver's descriptor           */
+                           /*                                           */
+                           /* Returns:  0 = OK, otherwise error code    */
+
+WORD32 CKnblkSendMsg(DESCRIPTOR receiver);
+                           /* Sends a message; returns immediately      */
+                           /* receiver: receiver's descriptor           */
+                           /*                                           */
+                           /* Returns:  0 = OK, otherwise error code    */
+
+WORD32 CKblkReceiveMsg(DESCRIPTOR sender);
+                           /* Waits for an incoming message; blocks     */
+                           /* sender: NULL for any, or otherwise the    */
+                           /*         descriptor of the thread to       */
+                           /*         accept messages from              */
+                           /*                                           */
+                           /* Returns:  0 = error, otherwise the        */
+                           /*           descriptor of the sender        */
+
+WORD32 CKnblkReceiveMsg(DESCRIPTOR sender);
+                           /* Redirects the next message to the sighndl */
+                           /* sender: NULL for any, or otherwise the    */
+                           /*         descriptor of the thread to       */
+                           /*         accept messages from              */
+                           /*                                           */
+                           /* Returns:  0 = OK, otherwise error code    */
+
+WORD32 CKORBblkReceiveMsg(DESCRIPTOR sender);
+                           /* Waits for an incoming message; blocks     */
+                           /* Uses the kernel's pair of buffers         */
+                           /* sender: NULL for any, or otherwise the    */
+                           /*         descriptor of the thread to       */
+                           /*         accept messages from              */
+                           /*                                           */
+                           /* Returns:  0 = error, otherwise the        */
+                           /*           descriptor of the sender        */
+
+WORD32 CKORBnblkReceiveMsg(DESCRIPTOR sender);
+                           /* Redirects the next message to the sighndl */
+                           /* Uses the kernel's pair of buffers         */
+                           /* sender: NULL for any, or otherwise the    */
+                           /*         descriptor of the thread to       */
+                           /*         accept messages from              */
+                           /*                                           */
+                           /* Returns:  0 = OK, otherwise error code    */
+
+WORD32 CKfindIORDescriptor(struct IOR kernelIOR);
+                           /* Finds the descriptor for a kernel         */
+                           /* kernelIOR:  IOR of the kernel to be found */
+                           /*                                           */
+                           /* Returns: Value > 0: Descriptor for object */
+                           /*          Value < 0: Error code            */
+
+WORD32 CKhookInterrupt(BYTE interrupt);
+                           /* 'Hooks' an interrupt to the calling SK    */
+                           /* interrupt:  interrupt to 'hook'           */
+                           /*                                           */
+                           /* Returns:  0 = OK, otherwise error code    */
+
+WORD32 CKunHookInterrupt(BYTE interrupt);
+                           /* Returns the interrupt to control of AKs   */
+                           /* interrupt:  interrupt to unhook           */
+                           /*                                           */
+                           /* Returns:  0 = OK, otherwise error code    */
+
+
+5. Virtual Memory Management Subsystem
+
+The VMM Subsystem maintains the main segment table for the target platform
+(on i386, the GDT) and a physical-to-virtual reverse page table for quick 
+address translation and lookup, as well as performing memory managment
+functions on the page tables contained in the address space objects. It
+interacts with the IOSK to provide paging.  These functions will be
+discussed below.
+
+5.1.  Paging
+
+The operations required for paging out pages to the disk, and back from
+it, are split over the CK and the IOSK.  How this works will be discussed
+in this section.
+
+The VMM Subsystem contains the handler for the page fault exception (this
+is the only trap that is handled by CK code, except for the timer
+interrupt, which is handled by the thread scheduling subsystem.)  When a
+page fault (PF) occurs, the CK page fault handler is invoked.
+
+The PF handler maintains a byte for every physical page frame which
+contains the page usage.  Every usage byte starts out with the value 0x80
+(when the page is loaded.)  Every time the PF handler is invoked, it
+shifts to the right every usage byte.  It then adds 0x80 to the usage
+bytes of all page frames that contain pages which have the Accessed bit
+set (it uses the reverse page table for this.)  It then determines which
+page to swap out by looking which page is loaded in the page frame with
+the lowest page usage (page usage byte contains the smallest value.)
+
+At this point, the VMM subsystem signals the IOSK, specifying the page to
+swap out and the page to swap in.  It is the job of the IOSK to write the
+page to be swapped out to the disk, and to locate the page to be loaded on
+the disk and load it into memory (more specifically, a swap LM loaded by
+the IOSK handles the actual swapping.)  Control then returns to the CK,
+which adjust the page tables and the reverse page table, and continues
+normal operation.
+
+5.2.  Segments
+
+The VMM subsystem maintains the main Segment Table for the target
+platform. The discussion about segments is rather architecture-specific, 
+so we will discuss the implementation on the i386 architecture here.
+
+On i386 machines, the GDT contains the global system segments.  This
+segment table will probably always contain the same, so it doesn't need CK
+system calls to change it.  The GDT contains call gates for all system
+calls (see section 6,) as well as generic code, data and stack segments.
+
+Each thread in the system can have its own LDT, which contains the
+segments specific to that thread.  The LDT is created for the thread by
+its parent kernel, and is pointed to from the thread's TSS.  It is the job
+of the parent kernel to provide functions to create new segments, and to
+remove segments from the LDT.
+
+5.3.  EK Memory Management
+
+When an EK loads an Address Space Object into the CK, the pages belonging
+to the object are locked, and management of the memory is done by the CK's
+VMM Subsystem as described above.  Because the Page Directory and Page
+Tables are exactly one full page in size each, this locking can easily be
+accomplished by setting the occupied pages as read-only.
+
+Eventhough most memory managment is done by the CK, the EK still has
+(limited) access to the page tables it has loaded, to perform some of its
+own memory managment.  Whenever the EK wants to modify a particular Page
+Table, it calls the CK unlock system call. The CK first makes a quick
+duplicate of the Page Table (only one page), and switches the EK to run
+off it before unlocking the memory occupied by the original Page Table.
+The EK then makes any changes it wants to the unlocked page table.  When
+it has finished, it has to call the CK lock function to actually make the
+changes.  The CK then checks the new page table (if it is valid/secure,)
+and updates any of its internal structures with the data from the new page
+table, if neccessary.  Then it changes the mapping back to the new
+pagetable, and frees the memory it had allocated for the old.
+
+The CK also provides a restore call, which cancels the changes to the
+pagetable.  If the CK were to refuse the changes (due to security reasons,
+for instance) then the restore function could be called to restore the
+original page table and lock it.
+
+In most situations it is not much use to an EK to manage the page tables 
+it has loaded in this limited way.  There is one situation, though, where
+this is very important:  by modifying its thread's address spaces, an AK
+can provide shared-memory IPC services to its own threads.  Perhaps there
+are other uses, too.
+
+5.4.  Memory Allocation
+
+It is not the task of the CK to provide memory allocation calls to
+threads.  Memory allocation is handled in the EK libraries.  The VMM
+subsystem does provide kernel memory allocation functions to the other
+subsystems of the CK;  these are not exported as system calls, though.
+
+The VMM subsystem maintains a list of allocated CK memory regions, and a
+list of memory holes. It provides internal (CK) calls for allocating and
+freeing regions.  When a region is allocated, the list of holes is
+searched for a hole which is sufficiently big.  The region can then be
+added to the list of regions, while the list of holes is adjusted to this
+new situation.  If no hole sufficient in size is found, the CK is out of
+memory.
+
+Perhaps using a zone-based memory management scheme[5] is to be preferred
+to avoid memory fragmentation.
+
+5.5.  System Calls
+
+The following system calls are provided by the Virtual Memory Management
+Subsystem:
+
+WORD32 CKlockPageTable(DESCRIPTOR addrSpace, WORD32 entry);
+                           /* Locks the specified Page Table / Page Dir */
+                           /* Required for any changes to take effect   */
+                           /* addrSpace: Descriptor of Address Space    */
+                           /*            object containing Page Table   */
+                           /* entry:     Entry number of Page Table to  */
+                           /*            lock, or zero if locking Page  */
+                           /*            Directory                      */
+                           /*                                           */
+                           /* Returns:  0 = OK, otherwise error code    */
+
+WORD32 CKunlockPageTable(DESCRIPTOR addrSpace, WORD32 entry);
+                           /* Unocks the specified Page Table/Page Dir  */
+                           /* allowing modifications                    */
+                           /* addrSpace: Descriptor of Address Space    */
+                           /*            object containing Page Table   */
+                           /* entry:     Entry number of Page Table to  */
+                           /*            unlock, or zero if unlocking   */
+                           /*            Page Directory                 */
+                           /*                                           */
+                           /* Returns:  0 = OK, otherwise error code    */
+
+WORD32 CKrestorePageTable(DESCRIPTOR addrSpace, WORD32 entry);
+                           /* Restores changes to the Page Dir/Page Tbl */
+                           /* addrSpace: Descriptor of Address Space    */
+                           /*            object containing Page Table   */
+                           /* entry:     Entry number of Page Table to  */
+                           /*            restore, or zero for restoring */
+                           /*            Page Directory                 */
+                           /*                                           */
+                           /* Returns:  0 = OK, otherwise error code    */
+
+
+6. CK System Calls
+
+The way the the EKs communicate with the CK differs on each platform.  On
+the i386 platform, all the system functions are accessed through i386 Call
+Gates, passing the appropriate parameters on the stack in the C Calling
+Convention. All functions return a WORD32 value on the calling thread's
+stack, whether it be a value or an error code.
+
+   
+7. Evaluation
+
+The Alliance CK has, as specified, 14 system calls (excluding scheduler
+RT-calls which still need to be specified.)  We hope that we have
+minimised the system calls to such an extent that supervisor complexity is
+indeed reduced.
+
+Performance data is not yet available.  Performance evaluation will be
+possible when the CK is coded.
+
+
+8. References
+
+[1] http://www-dsg.stanford.edu/papers/cachekernel/main.html
+[2] The General System Specs can be found in the Alliance Forum
+[3] This document isn't written yet; Rik is working on it
+[4] A first draft is being worked on by Luc.
+[5] I read about this somewhere on Rik's page, but I didn't study it in
+    detail.  Can someone provide input here ?
+[6] The LM Specs can be found in the Alliance Forum
+[7] The Alliance Persistance Specs can be found in the Alliance Forum
+
+
+9. Revisions
+
+4/21/98 - First draft completed (Rudy)
+6/25/98 - Major updates and streamlining finished (Rudy)
+9/16/98 - Major updates; readdition VMM and removed SKM;
+          Converted all structures to C;  Layout changed (Ramon)
+9/26/98 - Minor updates; removed CK memory allocation calls; removed GDT
+          system calls and added explanation on the use of the LDT; added
+          reference to LMs, and mentioned the IOSK Swap LM; added signal
+          handler fork to support multithreaded handling of traps; added
+          possibility for not zeroing the outgoing buffer in IOC; added
+          possibility of having the signal handler running in the context
+          of the trap origin; fixed action of blocking/nonblocking send;
+          made CK interrupt handlers block the originator thread (Ramon)

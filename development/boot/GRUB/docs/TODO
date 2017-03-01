@@ -1,0 +1,19 @@
+	Add support/delays so that a floppy can be installed from
+	another floppy.
+
+	Add bootable CDROM support (this probably means I have to support
+	ISO-9660 plus maybe even the Rock Ridge extensions...  ugh).
+	Finish LBA and/or Int13 extensions support.
+
+	Fix keyboard/gateA20 bug (????  at least look at the code).
+	The keyboard status bits may be checked wrong.
+
+	Add indirect block support to the BSD FFS filesystem code, so files
+	larger than 16MB can be read.
+	???  Make symbolic links work for BSD FFS
+
+	???  Add command for modifying partition types.
+
+	Fix-up FreeBSD, NetBSD (and OpenBSD ?) command-line boot parameters
+
+	Add NetBOOT from L4-GRUB

@@ -1,0 +1,193 @@
+WORK IN PROGRESS !!!
+
+Alliance Cache Kernel Specs 4.0 Processor Supplement:
+Intel 80x86 family platform-dependant implementation
+
+Ramon van Handel <vhandel@chem.vu.nl>
+
+
+1.  Memory layout
+
+1.1 Virtual memory
+
+The alliance cache kernel uses the following virtual memory layout for
+its threads:
+
+Virtual address range       Usage
+--------------------------------------------------------
+0x00000000 - 0x1fffffff     CK Space
+0x20000000 - 0x3fffffff     Kernel Space
+0x40000000 - 0xffffffff     User Space
+
+Most threads have a parent kernel, which handles interrupts and the like.
+The thread itself has a 3GB space to reside in, hopefully more than
+enough.  The thread's parent kernel is mapped before the thread data and
+has 0.5GB space (should be enough too.)  Finally, the CK gets 0.5GB at the
+beginning of the virtual memory space.
+
+The user space is mapped by its kernel before the thread is cached.  The
+kernel space is mapped according to the kernel's ELF file by the kernel's 
+loader. The CK space is mapped according to CK Specs 4.0.
+
+1.2 Segments
+
+The GDT contains the following segments, at least:
+
+Seg  Selector   Virtual Range              DPL   Usage
+----------------------------------------------------------------------
+1    0x08       0x00000000 - 0xffffffff     0    Kernel Code Segment
+2    0x10       0x00000000 - 0xffffffff     0    Kernel Data Segment
+3    0x18       0x20000000 - 0xffffffff     1    EK Code Segment
+4    0x20       0x20000000 - 0xffffffff     1    EK Data Segment
+7    0x28       0x40000000 - 0xffffffff     3    User Code Segment
+8    0x30       0x40000000 - 0xffffffff     3    User Data Segment
+9    0x38       [none]                      0    Task State Segment
+...  ...        [none]                    ...    System Call Gates
+
+This way, the parent kernel has direct access to the thread's data, and
+the CK has access to the complete address space.  This highly simplifies
+some tasks (like caching objects.)
+
+DPL2 is unused.  CK runs in ring 0, kernel in ring 1, and user in ring 3.
+
+
+2. Scheduling
+
+2.1 The TSS
+
+The Alliance Cache Kernel uses one TSS segment in the GDT for all tasks.
+On a context switch, the CK overwrites the low 16 bits of the TSS
+descriptor base address (in the GDT) with the value for the task to switch
+to.  We make use of the fact that the old values in the TSS are cached by
+the processor.  Thus, when we switch to the new TSS, the current context
+is saved in the old TSS.
+
+2.2 The timers
+
+The scheduler uses 8254 timer channels 0 and 1.  Both channels are set to
+mode Interrupt on Terminal Count.  Channel 0 is used to schedule the next
+scheduler interrupt;  channel 1 is continually set to 0xffff.  The amount
+it has counted down is used on every schedule to determine the change in
+the realtime count.
+
+
+3. Calling
+
+3.1. System Calls
+
+The Alliance CK uses call gates for all system calls. Parameters are
+passed on the stack in C calling convention.  The return value is passed
+in %eax.
+
+3.2. Processor exceptions
+
+All processor exceptions, int 0x00-0x1f, are serviced by the CK.  Where
+neccessary, the request is forwarded to the signal handler of the parent
+kernel of the object in question (for instance, page fault will be
+forwarded to the parent kernel of the address space in question, but not
+before the CK has updated its own page tables to reflect the changes, if
+neccessary.)
+
+3.3. Hardware interrupts
+
+The 8259 master interrupt vector is set to int $0x68, and the slave vector
+to int $0x70.  That means that ints $0x68-$0x78 are reserved interrupts,
+and cannot be 'tapped' by application kernels.  Some are serviced by the
+CK (like the timer interrupt.)  Most are serviced by SKs, and are
+forwarded to them by the CK interrupt handlers.
+
+3.4. All others
+
+All other interrupts are forwarded to the signal handler of the parent
+kernel of the currently running thread.
+
+
+4.  Signal handler
+
+4.1 How it works
+
+Every kernel has an associated signal handler function.  The signal
+handler prototype looks like this:
+
+PUBLIC VOID sigHandl(UWORD32 signal, UWORD32 extra,
+                     DESCRIPTOR thread, struct regs registers);
+
+Inputs:
+    signal:    Signal type to process (defined in CK specs 4)
+    extra:     Extra information;  Depends on signal (for interrupt
+               handling signal, this is the interrupt number to handle)
+    thread:    The thread that caused this signal; NIL for CK-triggered signal
+    registers: The register contents during system call
+
+sigHandl needs to be programmed reentrantly in order to function
+correctly.
+
+On signal handler entry, the processor is in a state that resembles the
+state after an interrupt.  %ss is guaranteed to be valid, and is the same
+as ss0 in the thread's TSS.  %ds is undefined.  The user data segment is
+saved on the signal handler's stack by the CK interrupt forwarder.  After
+handling the signal, the handler can remove the parameters from the stack,
+pop the registers and the user data segment, and iret to resume user code
+execution.  This is done easiest using a signal handler stub, like this:
+
+    #include "sys/asm.h"            /* Contains RESTOREREGS macro */
+
+    sigHandlStub:                   /* The EK signal handler stub */
+        pushw %ss                   /* Switch to EK data segment  */
+        popw %ds                    /* %ss is always valid (ss0)  */
+        cld                         /* GCC likes this             */
+        call sigHandl               /* Handle the signal          */
+        addl $0xc,%esp              /* Remove the parameters      */
+        RESTOREREGS                 /* Restore the user registers */
+        popw %ds                    /* Restore the user data seg  */
+        addl $0x2,%esp              /* ... and remove padding     */
+        iret                        /* Return from interrupt      */
+
+The stack frame on signal handler entry looks like this:
+
+ *  0x3c(%esp)   %ss (pad) \
+ *  0x38(%esp)   %esp       |
+ *  0x34(%esp)   %eflags     >  Used by iret to return to the user code
+ *  0x30(%esp)   %cs (pad)  |
+ *  0x2c(%esp)   %eip      /
+ *  0x28(%esp)   %ds (pad)      User data segment
+ *  0x24(%esp)   %eax      \
+ *  0x14(%esp)   %edx       |
+ *  0x10(%esp)   %ecx       |
+ *  0x20(%esp)   %ebp        >  User registers
+ *  0x1c(%esp)   %edi       |
+ *  0x18(%esp)   %esi       |
+ *  0x0c(%esp)   %ebx      /
+ *  0x08(%esp)   Calling thread descriptor
+ *  0x04(%esp)   Interrupt number
+ *  0x00(%esp)   SIGNLINT
+
+4.2 Local interrupt forwarding
+
+For local interrupt forwarding, we follow these steps:
+
+(1) We get the address of the EK stack
+(2) We copy onto the EK stack the data needed for interrupt return to user
+    code from the CK stack.
+(3) We put on the EK stack the user data segment and user registers
+(4) We put on the EK stack the parameters to pass to the signal handler
+(5) We push ss:esp of EK, eflags, and cs:eip of handler entry point onto
+    the CK stack in iret fashion and execute iret. It is now up to the EK
+    to pop all the registers from its own stack when it is finished, and
+    to execute iret as well. We don't worry about discarding the remaining
+    junk on the CK stack, because the CK %esp is discarded on iret anyway.
+
+4.3 Inter-kernel interrupt forwarding
+
+## Note:  These are initial thoughts.  More detail when it's implemented :)
+
+Interrupts that are hooked permanently to kernels (ie, keyboard int or so)
+are done by setting the entry point in the kernel's signal handler thread
+TSS, and switching to it (first unblock it.) In order not to disturb the
+signal thread while it's handling a signal, there is a 'signal handler
+busy' flag in the thread's object header.  The signal handler thread
+itself is responsible for forking ASAP for 'fixed' interrupts.  For fixed
+interrupts, the originally running task can continue unblocked.  (perhaps
+the 'block thread' system call should contain a check for the busy flag.
+If it is set, it is unset, and a function is called to check for, and if
+any, invoke pending signals.)

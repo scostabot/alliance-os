@@ -1,0 +1,60 @@
+README for GRUB -- GRand Unified Boot-loader
+
+Introduction
+
+  GRUB version 0.5 is a bootloader for PC-compatible machines, which
+  complies with the Multiboot standard.  It was written by Erich Boleyn
+  <erich@uruk.org>.  More information about the mainstream releases of
+  GRUB can be found at http://www.uruk.org/grub/.
+
+  This release of GRUB is not a mainstream release.  GRUB has been chosen
+  by the Alliance Operating System team (http://www.allos.org/) as their
+  standard bootloader, and GRUB will be kept up to date and share code 
+  with the rest of the Alliance source tree.  Currently, not much more has
+  changed than a restructuring of the GRUB tree to allow code sharing with
+  the Alliance ABL, but significant changes may be made to the tree in the 
+  future (both Alliance-related and Alliance-independant) in which case
+  we will start using a new versioning system (GRUB a0.1, GRUB a0.2 etc.)
+  Moreover, we are also borrowing code from another effort to improve
+  GRUB, Gordon Matzigkeit's GNU GRUB (mailing list bug-grub-request@gnu.org).
+
+
+Installation
+
+  When you build the Alliance source tree, the makefile will dump compiled
+  versions of the GRUB stages in the "binaries" directory:
+
+	binaries/
+		stage1		This is the 512-byte stage1 which reads
+				in the rest of GRUB at boot-time.
+		stage2		This is the main part of GRUB.
+
+  Instructions for installing can be found in "docs/manual/install.html".
+
+
+Notes on hacking GRUB
+
+  IMPORTANT SIZE LIMITS:
+
+  - For the various stage2's, if they are being loaded from a block-list
+    in the stage1, then be sure your blocklist is big enough.  The
+    automated install will generally do this for you, it's just when
+    dropping it on a raw floppy, you get the default compiled in, which
+    is 512 * 80 disk sectors, or 40960 bytes.
+
+  - For the FFS stage1.5, if you want to fit into the "bootloader" area
+    of an FFS partition, it cannot be larger than 512 * 14 disk sectors,
+    or 7168 bytes.
+
+
+Other Documentation
+
+  Pretty much all of the documentation and other helpful information is
+  in the "docs" directory mostly as HTML files, the root of which is
+  "index.html".
+
+  The FAQ and Installation instructions really need to be updated and
+  improved!
+
+  The TODO and NEWS files are always up-to-date.
+

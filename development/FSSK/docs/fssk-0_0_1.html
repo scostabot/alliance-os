@@ -1,0 +1,281 @@
+<HTML>
+
+<HEAD>
+
+   <META HTTP-EQUIV="Content-Type" CONTENT="text/html; charset=windows-1250">
+
+   <META NAME="GENERATOR" CONTENT="Mozilla/4.05 [en] (Win95; I) [Netscape]">
+
+   <TITLE>FSSK v0.0.1</TITLE>
+
+</HEAD>
+
+<BODY>
+
+
+
+<H1>Alliance File System SK Specification Draft v0.0.1</H1>
+
+<UL><LI><A HREF="#abstract">Abstract</A></LI>
+
+	<LI><A HREF="#intro">Introduction</A></LI>
+
+	<LI><A HREF="#fssk_api">FSSK API</A></LI>
+
+	<UL><LI><A HREF="#standard_api">Standard API</A></LI>
+
+		<LI><A HREF="#device_api">Device API</A></LI>
+
+		<LI><A HREF="#fs_api">FS API</A></LI>
+
+		<LI><A HREF="#cache_api">Cache API</A></LI>
+
+	</UL>
+
+	<LI><A HREF="#related">Related work</A></LI>
+
+	<LI><A HREF="#remarks">Concluding Remamrks</A></LI>
+
+	<LI><A HREF="#ack">Acknowledgements</A></LI>
+
+	<LI><A HREF="#history">Document History</A></LI>
+
+</UL>
+
+
+
+<HR><H2><A NAME="abstract"></A>Abstract</H2>
+
+<UL>
+
+<P>Alliance  File System System Kernel (FSSK) will provide file system calls for
+all installed operating systems. It will provide access to logical directory structure, as well as to physical devices holding data. The main idea for logical file system acce
+ss is to have generic file system calls, callable from any Application Kernel (either directly, or throught SKI). On the other side, device calls, are not intended to be called directly by Application Kernels or aplications. However, they will be public t
+o software doing an emergency tasks.
+
+</P>
+
+</UL>
+
+
+
+<HR><H2><A NAME="intro"></A>Introduction</H2>
+
+<UL>
+
+<P>FSSK manages two kinds of Loadable Modules (LM). One kind are drivers for file systems available to user, and the second are drivers for all installed devices. This is because FSSK wont take care about how to physicaly touch any real device, nor will i
+mplement any real file system - it will simply translate calls of the outside world to calls for LMs it manages.
+
+</P>
+
+</UL>
+
+
+
+<HR><H2><A NAME="fssk_api"></A>FSSK API</H2>
+
+<UL><P>FSSK will provide four basic groups of functions:
+
+</P>
+
+<UL><P><LI>Standard API</LI>
+
+		<LI>Device API</LI>
+
+		<LI>FS API</LI>
+
+		<LI>Cache API</LI>
+
+</P></UL>
+
+
+
+<P><B>Standard API</B> includes functions that are present in all system kernels, defined in System Kernel Specification <I>(which doesn't exist yet...)</I>. These functions include <TT>skInitialize() </TT> to initialize FSSK after loading, <TT>skReinitia
+lize()</TT> to reinitialize it in case, <TT>skDeinitialize()</TT> before final shutdown, and others.
+
+</P>
+
+<P>
+
+<B>Device API</B> functions work with hardware devices. They provide detection, un/locking, testing and measuring performance. This group of functions will be used only by FSSK and file system LMs from a great deal, but will be public for pieces of softwa
+re doing recovery jobs etc.
+
+</P>
+
+<P>
+
+<B>FS API</B> function group will include all file system function calls, callable from Application Kernels. These functions will include functions for creating directories, file read/write operations, or un/mounting and file systems. AKs doesn't have to 
+take care about real file system they are working on, they will use the same functions on FAT or EXT2FS. Job for FSSK is to distinguish between file systems, and togeather with Security System Kernel check access permissions to files or directories.
+
+</P>
+
+
+
+<P><B>Cache API</B> is here because programs under installed operating systems will not know exact informations about file systems they run on. Better, programs will be able to retrieve exact info on file systems and/or drives, but because you will be abl
+e to mount the same directory under two operating systems, view some file in viewer under one OS, and write some additions under another OS to the same file, it would be redundant to cache this file under both operating systems. Therefore, FSSK offers opt
+ion to cache both, physical drives or only certain file systems.
+
+</P>
+
+
+
+<HR><H3><A NAME="standard_api"></A>Standard API</H3>
+
+<UL>
+
+<P><I>Exact list of functions will be here after we would have System Kernel specification finished.</I></P>
+
+</UL>
+
+
+
+<HR><H3><A NAME="device_api"></A>Device API</H3>
+
+<UL>
+
+<P>
+
+This group of functions works with hardware devices installed in computer. These will be floppy drive and harddisk drive from early beginigs. Later we will add CD-ROMs, tape drives etc.
+
+</P>
+
+<P>
+
+Before any work with some device can be done, we have load one LM for every device&nbsp;-&nbsp;its hardware driver. Scaning for installed hardware and loading modules for them will be done during initialization of this system kernel. To every found device
+ we assign unique number, which can be used in <TT>fsGetDeviceInformation()</TT> call. Numbers are assigned from 1 to <I>n</I>. Retrieving info for any device with number greather than <I>n</I> will fail. The only way to change number of devices, is some 
+driver, which will create another <i>pseudo</i> device.
+
+</P>
+
+<P>
+
+There are two kinds of devices - hardware devices, and so called pseudo devices. Every hardware device requires hardware driver. This hardware driver will create pseudo device. And every pseudo device requires a file system driver. To explain it better, I
+'ll show how to mount one partition on a hard disk drive:
+
+</P>
+
+<UL>
+
+<P><LI>First, we will have to load hardware driver LM for device. Now we are able to work with physical hard disk - lock or unlock it, read or write exact sectors, format tracks, test or benchmark it. Very important point is, that we can repartition drive
+ throught functions offered by this LM.
+
+</LI>
+
+	<LI>This hardware driver will create up to four pseudo devices, one for each partition. For this devices, we have to load a file system LM driver. Such driver will lock disk space occupied by partition for itself. Weather it creates another pseudo device
+, depends only on file system on partition. Primary DOS partiton drivers will not create pseudo device, however, Extended DOS partitions will <i>(Note: to understand this, you should know how DOS implements extended partitions <TT>:-)</TT>)</i>.
+
+</LI>
+
+</P>
+
+</UL>
+
+</UL>
+
+<HR><H4><A NAME="fs_api"></A>FS API</H4>
+
+<UL>
+
+<P>
+
+FS API function group will include all file system function calls, callable from AKs. These functions will include directory, file and un/mounting file system handling functions. AKs doesn't have to take care about real file system they are working on, th
+ey will use the same functions on FAT or EXT2FS. Job for FSSK is to distinguish between file systems, and togeather with Security SK check access permissions to files or directories.
+
+</P>
+
+</UL>
+
+
+
+<HR><H4><A NAME="cache_api"></A>Cache API</H4>
+
+<UL>
+
+<P>
+
+The Cache API will handle all caching functions at the device or file system level. Caching programs under particular AKs will not work. This is because all installed operating systems might try to open the same file - and it will be sufficient to hold it
+ in one global cache, instead of two independend caches under different operating systems. This will save a lot of memory.
+
+</P>
+
+</UL>
+
+</UL>
+
+
+
+<HR><H2><A NAME="related"></A>Related work</H2>
+
+<UL>
+
+<P>
+
+<LI><A HREF="http://www.utcru.sk/freedows/papers/FIN/ck-0.1.html">Cache Kernel FIN</A> (<A HREF="ftp://ftp.utcru.sk/pub/freedows/papers/FIN/ck-0.1.html">ftp link</A>)</LI>
+
+<LI><A HREF="http://www.utcru.sk/freedows/papers/kernel/kspec-0.4.3.html">Alliance Kernel Specification</A> (<A HREF="ftp://ftp.utcru.sk/pub/freedows/papers/kernel/kspec-0.4.3.html">ftp link</A>)</LI>
+
+<LI>Loadable Modules Specification</LI>
+
+<LI>System Kernels Specification</LI>
+
+<LI><A HREF="http://www.utcru.sk/freedows/papers/sk/iosk-4.html">Input/Output SK Specification</A> (<A HREF="ftp://ftp.utcru.sk/pub/freedows/papers/sk/iosk-4.html">ftp link</a>)</LI>
+
+<LI>Security SK Specification</LI>
+
+
+
+</UL>
+
+
+
+<HR><H2><A NAME="remarks"></A>Concluding Remarks</H2>
+
+<UL>
+
+<P>
+
+As this is the first release of the File System SK Specification, I expect
+many ideas (either from Alliance Kernel Team or other readers <TT>:-)</TT>
+).
+
+ </P>
+
+</UL>
+
+
+
+
+
+<HR><H2><A NAME="ack"></A>Acknowledgements</H2>
+
+<UL>
+
+<P>
+
+I'd like to express many thanks to entire Kernel Team, as well as to
+Harald Johnsen, previous author of File System Specification, which has
+been completely rewriten to conform to updated Alliance Kernel System.
+</P>
+
+ </UL>
+
+
+
+<HR><H2><A NAME="history"></A>Document History</H2>
+
+<UL>
+
+<P>
+
+0.0.1 - 7th June, 1998 - <A HREF="mailto:matej@pobox.sk">Matej Kovac</a> - firt release<BR>
+
+</P>
+
+</UL>
+
+
+
+</BODY>
+
+</HTML>
+

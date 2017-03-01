@@ -1,0 +1,606 @@
+NOTE:  This document is outdated, too.  I want to have a thurough look at
+Grasshopper's orthagonal persistance before I write a new version, but
+it's very low on my priority list right now.
+
+OS PERSISTANCE WHITEPAPER release 4.1
+By Ramon van Handel <vhandel@chem.vu.nl>
+
+1. Introduction
+   1.1.  What is OS Persistance ?
+   1.2.  Why this whitepaper ?
+
+2. Possible usage situations
+   2.1. Possible situations
+   2.2. Singleuser standalone/Thin client
+   2.3. Singleuser server
+   2.4. Multiuser standalone
+   2.5. Multiuser server
+   2.6. Possible problems
+
+3. Implications of OS Persistance
+   3.1.  The new hardware problem
+   3.2.  The boot-awareness problem   
+   3.3.  The error checking problem
+   3.4.  The disk space problem
+   3.5.  The timing problem
+
+4. Implementation of OS Persistance in Alliance
+   4.1.  Who loads the system state image ?
+   4.2.  The SSI format
+   4.3.  The hardware check
+   4.4.  The error check
+   4.5.  Loading the SSI and passing control
+   
+5.  Choices
+
+6.  Performance
+
+7.  Conclusion
+
+8.  Acknowledgements and where to reach the Author
+
+9.  References
+
+10. Changes
+
+
+1. Introduction
+
+This section explains what OS Persistance is, and what it is good for.
+
+1.1. What is OS Persistance ?
+
+Traditionally, when an operating system (from here: OS) boots it has to load
+and initialise all of its components, which means loading and initialising
+device drivers, reading and processing configuration files, and the like. This
+re-initialising after every boot takes a lot of time, which usually means
+booting times for these OSes between 30 seconds and 15 minutes (!) (try
+rebooting a Sun UltraSparc once...)  Another problem is that any open programs
+are gone after a reboot and need to be restarted by the user and manually put
+into their original state (by opening files, etc.)  Modern session-management
+systems have found a way around this, but they require applications to be
+compatible with the system.
+Most users don't feel like waiting for a long time while the system boots.
+A more advanced, automatic session management system would relieve both users
+and developers of a lot of headaches.  OS Persistance[4] is the way to
+circumvent both problems.  When an operating system is persistant, it
+writes a file containing an image of the system's memory, and any other
+factor that contributes to the state of the system to the disk.  When the
+system is rebooted the memory image is simply loaded into the memory, thus 
+effectively restoring the exact system state after a boot, including any
+open programs and their state, window positions etc.  Restoring a memory image
+is also usually much faster than reinitialising the whole system, thus we have
+reached both goals.
+
+1.2. Why this whitepaper ?
+
+Eventhough OS Persistance is a useful technique, it cannot be counted as one
+of the Alliance OS major features (eventhough probably this feature would
+mean more to the average user than, for instance, chainability of LMs...)  
+The reason this subject has been made into a separate whitepaper is because OS 
+Persistance does have major implications on the way Alliance boots, and for the
+roles of the ABL[1], the CK and the SKs[2] in the recovery of the system state
+and in the detection of new hardware (the implications will be discussed 
+below.)  Thus OS Persistance, if it will be implemented, cannot be ignored and
+only implemented at the last moment anymore as an 'afterthought', but needs to
+be specified and implemented (or at least taken into consideration) from the
+start.  This whitepaper is for that purpose.
+
+
+2. Possible usage situations
+
+Computers can be used for many different purposes and in many different
+ways.  Each of these usage situations might require a different approach
+to persistance.  As Alliance is intended to be a multipurpose system,
+these different situations need to be taken into account.
+
+2.1. Possible situations
+
+Before we can define the persistance details of the different usage
+situations we first have to define the situations.  We will do that in
+this paragraph, and describe the details in the next paragraphs.
+
+Generally, computers can be split up into two categories:  servers and
+desktop systems.  
+Servers are systems which are designed to provide (a) certain service(s)
+over a network; these services can be related to data management (like
+fileservers, and webservers) but also other services can be provided, like
+scientific calculation services.  Also a full working environment can be
+provided, in which case the client functions as a so-called 'thin client,'
+and applications are executed on the server.
+Desktop systems are the opposite of servers.  Desktop systems are designed
+to be used interactively by one user at a time.  Two types of desktop
+systems exist; 'thin clients' use a server to execute programs on, and the
+desktop system functions as a (graphical) terminal.  Standalone machines
+are designed to be fully functional interactive computers, being able to
+use their own CPU and memory to run applications on and store them in, and
+often also providing their own data storage facilities (though this is not
+necessarily the case; systems like NFS can be used to make the user's data
+be available anywhere on the network.)
+Another difference between clients and servers is uptime -- a typical
+server will be expected to stay up for 24 hours a day, and only needs to
+be rebooted in case something is wrong, or in case the hardware is being
+changed.  Desktop systems, though, usually stay up as long as they're
+being used and then are turned off.  A typical desktop system will be
+turned on in the morning when work starts, and will be shut down in the
+evening to be restarted next morning.
+
+Furthermore, each of the systems mentioned above can be split up into two
+categories - single user and multiuser systems.  Single user systems are
+systems where only a persistant state for one user needs to be remembered
+at a time.  Multiuser systems need to maintain a separate persistant state
+for every user.  An example of a multiuser server, for instance, is a
+'thin client'-server:  many users can log into and out of the server, but
+the users do expect their applications to be started up the same way they
+left them when they logged out when they log in again.  A persistant state
+needs to be maintained for every user.  On the other hand, a typical
+single-user system is a standalone system like PCs running MS Windows or
+Macintoshes running MacOS:  these systems are intended to be used by one
+person, or multiple persons having access to the same applications and
+data.  These systems require only one persistant state to be maintained.
+
+Let it be clear, that servers like www- and ftp-servers are single-user
+servers, not multiuser servers:  sure, they require authorisation (and
+thus user accounts) to access their services,  but the services themselves
+are performed by a daemon running on one user's account, and will not
+usually spawn any specific user processes of which the state needs to be
+preserved using persistance.
+Also, Thin Client systems are always single-user.  After all, in these
+systems the multiuser facilities are provided by the server.
+
+The whole matter gets thuroughly complicated when we state that more often
+than not a computer will need to fulfill the role of a combination of the
+categories stated above.  A single-user standalone machine might want to
+provide telnet services while online, for instance.  Thin clients, also,
+are often implemented as applications running in user space (like X
+servers.)
+
+We distinguish four situations in respect to persistance:
+
+- Thin client/Singleuser standalone (in combination with singleuser server)
+- Singleuser server (in combination with single user client)
+- Multiuser standalone (in combination with any other category)
+- Multiuser server (in combination with any other category)
+
+In the following paragraphs we will discuss the persistance requirements
+for these situations.
+
+2.2. Singleuser standalone/Thin client
+
+A singleuser standalone machine is a system like MS-Windows or MacOS.
+Usually, no login is presented on boot.  Systems like this are also
+rebooted often.
+
+The persistance solution on systems like this is the easiest of our four
+categories:  we can simply dump the whole memory (or all address spaces
+and object descriptors, see section 4.2) and restore it on boot, thus
+restoring system state.  Only one state needs to be preserved, and no
+login is needed, so this works.  Optionally, a screen locking program can
+be started before writing the system state to prevent unauthorised access
+to the computer when it is rebooted.  We will call this form of
+persistance 'full persistance'.
+
+Also, singleuser standalone systems could benefit from the Partial
+Persistance solution described in section 2.3 in case of hardware changes
+(see sections 3.1 and 4.3.)
+
+A note on thin clients:
+Systems devoted completely to being a thin client, like the traditional X 
+terminals, are becoming rare.  As full computers become cheaper, the
+financial benefits of having a lot of thin clients and a very powerful
+server become smaller, and it is usually cheaper to simply share part of
+the filesystem using protocols like NFS.  Nowadays, thin clients are
+usually used as programs running on top of the operating system in user
+space (compare the wide assortment of X servers for windows, for
+instance.)
+Using a Alliance system as thin client is easily done by creating a
+cut-down version of Alliance, only providing a CK, a NetSK, the System ORB
+and an AGUI AK (Possibly also an IOSK and SNDSK.)  The AGUI AK is then
+simply given the CORBA IOR of an UISK instance on a remote server.  No
+AEAKs are needed in a thin client.  For this kind of system, full
+persistance is very suitable to provide fast boot times.  Session
+management is done on the server which is running the UISK.
+
+2.3. Singleuser server
+
+For a singleuser server, many of the same things apply as were mentioned
+for singleuser standalone machines.  The difference is, that servers are
+expected to be up 24 hours a day, and only to be rebooted on hardware or
+software configuration changes, or when something is wrong.  In this case,
+it is rarly useful to do a persistant boot (after all, the whole point of
+the boot is to reload and reinitialise the operating system.)  On the
+other hand, it still is useful if the loaded applications are restored
+after boot (session management function.)
+
+In order to solve this problem we will intruduce two new terms:  System
+State and User State.  The system state is a dump of the address spaces of
+the system's objects, while the user state comprises of dumps of address
+spaces of the started applications.  In a singleuser server system, only
+the user state needs to be restored.  This kind of persistance is called
+'partial persistance'.  Enabling the usage of partial persistance makes
+impossible the use of possible optimisation tricks like a flat memory dump
+(see section 4.2.)
+
+When the system is always booted in partial persistance mode, only the
+user state needs to be dumped in a file  Otherwise, possibly the system
+state and user state need to be dumped in separate images.  In that case,
+it can be decided at boot time (possibly using the menu described in
+section 5) which image(s) need to be loaded.
+
+From now on, we will call the file in which we store the system's state
+the SSI (system state image.)  If there is a separate image file for
+user state, the SSI only contains the general system state, and the state
+for the user's applications is contained in the USI (user state image.)
+Otherwise, the SSI contains the whole system state.
+
+2.4. Multiuser standalone
+
+These are are standalone machines that are made to be used by different
+people, each having their own files and started programs.  When a user is
+finished, he logs out, in which case a different user can log in and use
+the computer.
+
+The problem here is, that each user will want to have the state of his
+open programs preserved, even after he has logged out of the computer, so
+they can be restored next time he logs in.  It would bring down the
+performance of the computer considerably, though, if the user's programs
+remain running or in memory after the user has logged out, and another
+user is using the computer.
+
+The solution here is to have one SSI to provide fast boot times, and a
+separate USI for each user.  Basically, the SSI contains the state of the
+system after it has just booted:  a fresh system with a login prompt.
+When a user logs in, his own personal USI is loaded into memory and used.
+When he logs out, a new USI is written back for him, and all his running
+applications are terminated.  The system returns to its login state, and a
+different user can log in.
+We call this persistance solution 'split persistance'.
+
+2.5. Multiuser server
+
+Basically, the multiuser server is the same as the multiuser standalone,
+except for the fact that a server isn't supposed to be rebooted (see
+section 2.3.)  Thus, the SSI can be discarded.  Also, in a
+multiuser server multiple USIs can be loaded into memory at the same
+time.  This can provide relocation problems (ie, the new application is
+loaded into a different place in memory than it was when its state was
+saved.)  In order to solve this problem, the USI loader will have to
+adjust the page tables for every loaded address space.  It is possible to
+set all pages to unloaded, thus basically solving the problem.  On the
+other hand, it is probably wiser to try to load as many as possible loaded
+pages back into memory even if they are located elsewhere than when the
+state was saved, because this allows us to preserve the application's
+working set, giving obvious speed benefits.
+
+2.6. Possible problems
+
+When using partial or split persistance, additional problems can occur.
+First of all, it is possible that the application was, when it was saved
+away, relying on the availability of a component of the system that wasn't
+loaded when the application's state was restored.  The system may attempt
+to restart the missing object (possibly the ORB's BOA or POA can do this.)
+Otherwise, the application needs to be terminated with a suitable error
+message.
+
+Another possibility is that the application is relying on a certain state
+of the hardware that is different when it is loaded than when it was
+written away in the SSI.  To solve this, applications might provide a
+signal handler for a 'persistant startup' signal (SIGPERS) that
+reinitialises the application's hardware state information.  This signal
+would be invoked on the application after persistant startup.  The
+standard handler would be empty, but the application writer can change it
+if he relies on specific hardware settings.
+
+Another problem can be that applications are relying on their object
+descriptor, or the object descriptor of their address space/parent kernel
+(etc.) that they got assigned by the CK.  More importantly, the
+application will be relying on it's assigned CORBA IOR for communication
+when applicable (application running on top of AEAKs will not have these
+problems, but might have similar problems with values assigned to them by
+the AEAK.  The AEAKs should be persistance-aware.)  This problem is not
+always solvabable; to avoid trouble the system should try to assign the
+same values to an object when it is restored as it had when it was written
+to disk.  This is not always possible, though.
+Another solution might be to patch certain symbols in the application's
+address space.  The feasibility of this needs to be researched.
+
+
+3. Implications of OS Persistance
+
+As we have seen, persistance isn't as simple as it was stated in the
+introduction.  We discuss some common problems below.
+
+3.1. The new hardware problem
+
+A problem occurs when the user has installed new hardware, or changed his
+old hardware configuration, while the system has been down (which is very
+likely to be the only time this happens, unless you have a PCMCIA system.)
+The state in the SSI is still trying to use the old values for the
+hardware configuration on startup, which will cause timeouts, or maybe
+even a lockup (anyway not a healthy system response.)  Obviously, there
+will be means for the user to force 'normal' or partial persistant startup
+on boot, but the modern user expects the OS to detect new hardware
+automatically on bootup, and configure itself as such.  Modern PC harware
+supports this using 'Plug 'n Play' BIOSes, PCI bus probes, SCSI bus probes
+and more.  The hardware thus has to be checked before the SSI is loaded.
+
+3.2.  The boot-awareness problem
+
+Even if the hardware configuration is exactly the same after a boot, the
+hardware state is not.  Simply restoring system state and assuming everything
+is the same may not always work.  Many hardware devices have to be reset to
+a certain state after boot, before they can be used.  Plug 'n Play devices need
+to be initialised.  Aside from these problems, Alliance also has to be aware
+of the possibility that the same system is being shared by different OSes, and
+thus that something might have changed about the disk layout while it 'wasn't
+looking'.  This would mean that the FSSK has to reread the partition table
+after every boot, rebuild the open file table, or perhaps even more 
+dramatically, flush the disk cache. (Awareness of other operating systems 
+should be something the user can set or unset, and should be set standard.  
+If the user is sure nothing can change while Alliance isn't running, Alliance
+can preform some optimisations like keeping the old disk cache after a reboot, 
+which saves a lot of time as it doesn't need to be rebuilt.) [the disk cache
+would probably be flushed at shutdown, not after a reboot, so that a) the
+reboot takes less time, and b) so any cached data for writing is written to
+the disk and is not lost -- Ramon]
+Because of these problems, the CK does have to be aware of a reboot and be
+given the chance to call all the SK's/LM's hardware initialisation routines
+(perhaps every EK[3] should have a ReInit(...) call that preforms any actions
+that are neccessary after the system has been booted using a memory
+image.)
+
+To make it easy on ourselves, we will from now on call booting using any
+type of persistance 'fast boot', and booting without 'slow boot'.
+
+3.3.  The error checking problem
+
+Writing an SSI to the disk is not very error-prone.  If an error does occur
+while writing the SSI, though, and the SSI becomes corrupted, chances are that 
+either the OS will not boot at all, but would lock up immediately, or it will
+lock up sooner or later.  To avoid this situation good error-checking needs
+to be implemented.
+
+3.4.  The disk space problem
+
+Another problem is that the system image will, certainly on heavy systems, 
+be quite large.  This means that a Alliance system, if it has persistance
+enabled, will need to have quite a bit of disk space free on shutdown.
+Normally this will not be a problem, but on systems with big memories and
+small harddisks (i.e., machines set up especially to do big calculations
+or machines optimised as graphic terminals) this might be important.
+Also, on systems with a fast processor but a slow harddisk having the
+image file compressed might provide some speed optimisation on startup
+(see section 3.2.)
+
+3.5.  The timing problem
+
+In order to provide fast boot times, persistance (at least loading the
+system SSI) should be relatively fast, even when the problems stated above
+are taken into account.  The performance of OS Persistance will be
+discussed in a later section.
+
+
+4. Implementation of OS Persistance in Alliance
+
+This section proposes a possible implementation of OS Persistance in the
+Alliance operating system, and it also proposes solutions to the implications
+which are discussed in the previous section.
+
+4.1.  Who loads the system state image ?
+
+Looking at the Alliance Boot FIN, it is clear that the loading of the SSI
+is done by the ABL[1], as it has to be done, if it is, before in stead of
+the 'loading the CK and SKs' steps in the boot process.  Thus the ABL gets
+the following tasks:
+
+   - It has to check for changes in the hardware configuration
+   - It has to know where on the disk the SSI is, and its size
+     (This is dependant on how the ABL recognises files in the filesystem, 
+      and still needs to be discussed.)
+   - It has to preform error checks on the SSI
+   - It has to load it
+   - It has to transfer control to the CK, and let it know it is a fast boot
+
+4.2.  The SSI format
+
+When Alliance is shut down, or when a user logs out in a multiuser
+system, the SSI (or USI, or both, depends on the situation) has to be
+written. The question is, what does the SSI need to contain ?  It is best
+not to dump a dumb memory image. It is unlikely that all (available
+virtual) memory is being used at any one time (if it is, something is
+probably wrong with the system).  Thus, it is more useful making the SSI
+an indexed file of dumps of every address space loaded into the CK, plus a
+dump of the CK objects, plus the non-memory system state.  This saves both
+disk space and the time it takes loading the SSI.
+On the other hand, it is possible that the main booting speed benefit of
+the SSI is the fact that the file can be sequentially read into memory,
+thus reducing harddisk seek time.  In this case, making the SSI a flat
+memory image is a good idea.  Only the physical memory needs to be dumped
+this way -- the swapped-out virtual memory can stay in the swap partition,
+the way it was when the system was shut down.  Unfortunately, a flat
+memory image is only usable using full persistance.
+Also, it is possible to compress the SSI to save disk space.  This does
+take, though, extra CPU time when the SSI needs to be loaded again.
+The main problem in choosing compresssion/no compression and flat
+image/indexed file is that there is no best -- the best system is
+dependant on the type/speed of CPU, and the type/seek time/etc. of the
+system's harddisk.  Thus, the best idea is to make all of these possible,
+and to be able to set the optimal configuration per system.  Several
+levels of compression can be implemented (fast/little, medium/medium,
+slow/much.) The Alliance installation program would then test every
+combination on installation, and choose the fastest combination for that
+particular system.
+
+4.3.  The hardware check
+
+Before the ABL loads the SSI (or not), it has to do a check whether the
+hardware configuration has not changed.  This could take a lot of time and be
+quite complicated, if done extensively.  A fast method to do an 'overall' check
+has to be used.
+One method to do a fast check to see if nothing crucial has changed is that
+the shutdown software (which is probably part of the CK) stores the response
+to the PCI bus probe/PNP probe [does this exist ? -- Ramon] at shutdown time
+in the SSI.  On startup, the ABL would do these probes and compare the response
+to the response stored in the SSI.  If they are the same, then apparently the
+hardware configuration hasn't changed (or anyway not enough to cause a lockup.)
+If they are not, probably a slow boot should be forced, but this still needs
+to be discussed.  It is also possible to ask the user whether he wants to slow
+boot, as new hardware has been detected and so there is danger of lockups,
+whether he wants to risk a normal fast boot, or have him select a 
+different kind of persistance if applicable.
+On a slow boot, the system should probably do a more advanced hardware search
+and automatically install new drivers or change the old configuration, if
+necessary (much like the MS-Windows hardware search facility.)
+
+4.4.  The error check
+
+The primary means for checking whether the SSI was correctly written is that
+somewhere in the filesystem (prefarably not in a file, but in the partition
+table or in the inode table) a bit is set after the SSI was correctly written.
+On boot, if the ABL sees this bit is unset it does a slow boot.  If it sees
+it is set is immediately unsets it, and does a fast boot.
+Another, more accurate possibility is that a CRC check (or something similar)
+is done on the SSI before it is loaded.  This might prove, though, to be too
+costly in the terms of time to be really useful. 
+[anyone have timings on CRC checking a 512mb file ? -- Ramon]
+A note on the side:  Users might have so much faith in the OS Persistance that
+they don't save their data before shutting down, assuming it will come back
+when they reboot.  This is quite all right (that's what we want), but it does
+mean that if writing the SSI fails for some reason there is a risk of data 
+loss.  Thus, if the shutting down fails, the user should be confronted with a
+dialog box (in a GUI environment) giving him/her several options, like just
+shut down and slow boot next time, or try again, or don't do it yet I still
+want to go shut down my programs and save my data etc.  This way any data loss
+is at least not our fault -- of course this kind of thing isn't supposed to 
+happen.  A similar thing can be done when writing a USI fails.
+
+4.5.  Loading the SSI and passing control
+
+Eventhough the loading of the SSI itself is not so complicated (loop through
+the SSI header and load all address spaces in the apporpiate place) passing
+control to the OS creates several 'sticky' complications.  The problem is, that
+chances are pretty great that some address space or the other has to be loaded
+at the same memory address that the ABL is using (after all, once the system
+is booted the ABL can be discarded.)  Several solutions have been suggested to
+this problem, several including tricks with page tables.
+The simplest and most efficient idea that has been suggested will be 
+discussed here.  In this idea, the ABL is loaded in and run from the end
+of the video memory.  This  way, the ABL cannot be overwritten while it is
+loading the SSI.  The video memory isn't stored in the ABL, as the UISK
+refreshes the screen after a fast boot, thus restoring the video memory to
+what it should be and effectively removing the ABL.
+Eventhough this method looks neat it has several drawbacks.  First of all,
+this method is horribly PC-specific and thus makes it hard to port the ABL
+to other platforms.  Secondly, it requires the user to have a VGA+ card in
+his computer, or otherwise he will not have enough video memory to store
+the ABL and a text screen/splash screen at the same time.  Also, video
+memory is often slow (but this shouldn't be that much of a problem.)
+
+The Alliance team is currently working on specifying a platform
+independant solution to the SSI loading problem.  This solution should be
+a guideline to Alliance porters, or perhaps should be made into an
+alternative ABL for older non-VGA computers.  A new method will hopefully
+be specified by the next release of this document.
+
+
+5. Choices
+
+It should be stressed that many things that are discussed in this whitepaper
+as 'fact' are in fact for the user to choose.  First of all, the whole OS
+Persistance feature could be turned off.  In this case, simply no SSI is 
+written at shutdown, and the 'SSI OK' bit is always kept off.  The ABL
+knows it doesn't use persistance and loads the system normally.
+There are also other choices, like the 'awareness of other OSes' choice
+discussed earlier, and of course the ABL format options.  Another very
+important feature is that if a certain key is pressed at boot time (we
+were thinking of 'esc') then the user is presented with a menu, in which
+he/she has several choices, one of which is to force a slow boot, and
+others to choose several persistance methods. The user should always be
+able to slow boot if for some reason the SSI is corrupt, but still passes
+all error-tests.
+Another option would be that the user is able to choose at boot time which
+system components he wants to load from the SSI, and which he wants to be
+reloaded from scratch.  This would allow system administrators to debug
+problems by being able to see (and specify) at boot time which components
+are loaded, and from where.
+
+
+6. Performance
+
+Aside from providing transparent session management, persistance can
+also provide fast boot times (on non-server systems.)  If it were only
+the loading of the SSI that takes the time, then we certainly have a huge
+gain - after all, on modern harddisks loading a relatively big (64mb) SSI
+file should only take a few seconds, whereas normal boot takes much longer
+(also, when one file is loaded the sectors can be read sequentially
+reducing seek time significantly, while when many files are loaded from
+all over the disk, like with a slow boot, there is much more seek time.)
+Unfortunately, after a fast boot some hardware still needs to be
+reinitialised, and if it turns out the OS Persistance is so unreliable
+that we need a CRC check on the SSI, then we lose even more time. It is
+unlikely though that the last will happen, and probably we will have a 
+considerable gain in total.
+
+
+7. Conclusion
+
+Eventhough OS Persistance brings along quite a few complications, it also
+gives a considerable gain in terms of time and userfriendliness.  Most 
+complications are solvable in the ways described above.
+
+
+8. Acknowledgements and where to reach the Author
+
+The OS Persistance idea was taken from Neil Stockbridge's OS page on the
+WWW.
+
+This document was written by Ramon van Handel.  For any comments, additions,
+subtractions, changes, whatever (multiplications and divisions if you like)
+you can mail me at vhandel@chem.vu.nl
+
+
+9. References
+
+[1] ABL means Alliance Boot Loader.  See the Alliance Boot FIN for more 
+    information.
+
+[2] For a description of the Cache Kernel and the System Kernels, see the
+    Alliance General System Specification 7
+
+[3] This comes from the Alliance Cache Kernel Specification 0.1 and means
+    External Kernel, which is either an AK, SK or LM.
+
+[4] This has been implemented before, and perhaps the earlier
+    implementations should be looked at before we start implementing.  Two
+    useful place:  CORBA Object Persistance (CORBAServices) and the
+    Grasshopper Operating System (orthagonal persistance)
+
+
+10. Changes
+
+- July 13, 1998
+  : Added 2.4 disk space problem
+  : Changes to 3.2:  added compression and flat memory image ideas
+  : Changes to 3.5:  added video memory idea
+  : Changes to 4:    added partial persistance idea
+
+- August 15, 1998
+  : Inserted sections 2.x, moved section 2+ to 3+
+  : Changed description of section 3
+  : Made changes to section 3.1 reflecting partial persistance
+  : Made changes to section 3.2 reflecting new terminology
+  : Made changes to section 3.5 because of reduced importance of performance
+  : Made changes to section 4.3 reflecting new kinds of persistance
+  : Made changes to section 5: removed partial persistance
+  : Made changes to section 6, because of reduced importance of performance
+
+- August 20, 1998
+  : Introduced SSI/USI terminology in section 2.3
+  : Changed references to user SSI to USI
+  : Mentioned flat memory only usable in full persistance in section 4.2
+  : Removed all references to registers (they are stored in TSSs)
+  : Added boot selection idea to section 5
+
+- August 25, 1998
+  : Made small changes to section 4.2 and 4.4
+  : Removed the old SSI-loader-in-CK idea in section 4.5

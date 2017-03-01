@@ -1,0 +1,30 @@
+##########################################################################
+# GRUB menu file
+#
+
+timeout = 30
+
+title=		Linux 2.2.3 SMP standard
+root=		(hd1,1)
+kernel=		/boot/vmlinuz-2.2.3-5-new root=/dev/sda2 ro
+
+title=		DOS 6
+root=		(hd0,0)
+makeactive
+chainloader=	+1
+
+title=		Alliance Operating System (dev)
+root=		(hd0,2)
+kernel=		/alliance/development/boot/ABL/binaries/ABL (hd0,2)/alliance/development/boot/ABL/scripts/abl.conf
+
+title=		Alliance Operating System (dev,netboot)
+root=		(nd)
+kernel=		/alliance/development/boot/ABL/binaries/ABL (nd)/alliance/development/boot/ABL/scripts/abl.conf.net
+
+title=		Boot from /dev/fd0
+root=		(fd0)
+chainloader=	+1
+
+title=		Boot from /dev/fd1
+root=		(fd1)
+chainloader=	+1

@@ -1,0 +1,48 @@
+dnl -*- mode: shell-script -*-
+dnl Process this file with autoconf to produce a configure script.
+
+AC_INIT(IDL.h)
+AM_INIT_AUTOMAKE(libIDL, 0.5.8)
+
+AC_ISC_POSIX
+
+dnl Checks for programs.
+AC_PROG_CC
+AC_PROG_CPP
+AC_CPP_ACCEPT_IDL
+if [[ "$ac_cv_cpp_accept_idl" = "no" ]]; then
+    AC_MSG_WARN(CPP does not accept IDL)
+fi
+AC_CPP_PIPE_STDIN
+CPP_PROGRAM="$CPP"
+AC_DEFINE_UNQUOTED(CPP_PROGRAM, "$CPP")
+
+AM_PROG_LEX
+if [[ "$LEX" = "flex" ]]; then
+    LFLAGS="-8"
+else
+    LFLAGS=""
+fi
+AC_SUBST(LFLAGS)
+AC_PROG_YACC
+AM_PROG_LIBTOOL
+
+dnl Checks for libraries.
+AC_CHECK_PROG(HAVE_GLIB_CONFIG, glib-config, yes, no)
+
+AM_PATH_GLIB(1.1.4)
+
+AC_STDC_HEADERS
+AC_CHECK_HEADERS(stddef.h wchar.h wcstr.h)
+
+AC_OUTPUT(Makefile)
+
+echo
+echo libIDL configuration complete
+echo
+echo "  C Preprocessor: \"$CPP_PROGRAM\""
+if [[ "$ac_cv_cpp_pipe_stdin" = "yes" ]]; then
+    echo "  Standard input supported."
+else
+    echo "  Using symlink method."
+fi

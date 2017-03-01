@@ -1,0 +1,41 @@
+<HTML>
+<HEAD>
+   <META HTTP-EQUIV="Content-Type" CONTENT="text/html; charset=iso-8859-1">
+   <META NAME="Author" CONTENT="Kernel Team, wrote by Stefano Costa (scosta)">
+   <META NAME="Classification" CONTENT="Drafts">
+   <META NAME="Description" CONTENT="Description of the Alliance research projects.">
+   <META NAME="KeyWords" CONTENT="Alliance research projects, Alliance Specs,AllianceKernel,  Kernel, Alliance, Specs, Draft">
+   <TITLE>Alliance OS Research Projects</TITLE>
+</HEAD>
+<BODY>
+<font COLOR="Black" SIZE="3" FACE="Arial, Helvetica">
+
+<H2>Alliance OS Research Projects</H2>
+Developing a new OS is never easy, and even if the big picture and targets are clear, the road to go is long and dangerous. In order to have a clearer understanding of some particular tecniques that will be used in the <TT>/development</TT> branch, some experimentation is both good and functional. Also here are built some tools useful to support the development of the mainline.<p>
+Basically the <A HREF="../../development/docs/CodingGuidelines.html">coding rules</A> and <A HREF="../../development/docs/CodingGuidelines.html#Files and directories organization">directory naming conventions</a>  used in the Alliance OS are followed, even if in a less stricter way. It is possible to use some code from <TT>/development</TT> branch, but in general it is pretty independent from the mainline in term of code and configuration, so we avoid to pollute a research environment with unnecessary complexity and we avoid to mess up the mainline itself. It is also possible to use all the facilities offered by the hosting development platform, Linux or another decent UNIX, so UNIX libraries can be used here in the code (the only exception in the development line is inside testing module code). In general the <TT>/research</TT> branch is a place where we put Alliance OS standard code wherever this does not imply unnecessary complexity or unnatural choices, helping the solution of specific implementation problems in Alliance coding style, and leaving the rest not necessarily compliant. It is important though not to go too far in this direction, since lazyness is not always a good choice.<p>
+Each research project has its own life cycle: some research projects are only an ad-interim solution to some specific problems, while others are more geared to be used as debugging tools in the Alliance OS life. Research projects also may be created raher quickly. Below are listed the currently defined ones, with a small description and current state (Alpha if it is in the early stage of development, Beta if it is a mature research tool).<p>
+
+<CENTER>
+<TABLE BORDER=0 CELLPADDING=2 WIDTH="100%" >
+<TR ALIGN=CENTER VALIGN=CENTER>
+<TD COLSPAN="3" BGCOLOR="#FF9900"><B><FONT SIZE=+1>Project Name</FONT></B></TD>
+<TD BGCOLOR="#FF9900"><B><FONT SIZE=+1>Description</FONT></B></TD>
+<TD BGCOLOR="#FF9900"><B><FONT SIZE=+1>State</FONT></B></TD>
+</TR>
+<TR ALIGN=CENTER VALIGN=CENTER>
+<TD COLSPAN="3" BGCOLOR="#FFFF00"><B><A HREF="../dynalinker/docs/DynSH.html">Dynamic Linker shell</A></B></TD>
+<TD BGCOLOR="#FFFF00"><B>Load executable files and dump their infos</B></TD>
+<TD BGCOLOR="#FFFF00"><B>Beta</B></TD>
+</TR>
+<TR ALIGN=CENTER VALIGN=CENTER>
+<TD COLSPAN="3" BGCOLOR="#FFFF00"><B><A HREF="../boot/docs/docs/bootloader.html">Experimental BootLoader</A></B></TD>
+<TD BGCOLOR="#FFFF00"><B>Try to boot the alpha version of Alliance OS</B></TD>
+<TD BGCOLOR="#FFFF00"><B>Alpha</B></TD>
+</TR>
+<TR ALIGN=CENTER VALIGN=CENTER>
+<TD COLSPAN="3" BGCOLOR="#FFFF00"><B>Scheduler Simulation</B></TD>
+<TD BGCOLOR="#FFFF00"><B>Try to evaluate scheduler algorithm</B></TD>
+<TD BGCOLOR="#FFFF00"><B>Alpha</B></TD>
+</TR>
+</CENTER>
+</HTML>

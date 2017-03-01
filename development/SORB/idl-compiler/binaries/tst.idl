@@ -1,0 +1,3 @@
+	exception foo {
+		long dummy;
+	};

@@ -1,0 +1,918 @@
+From:    Ramon van Handel <vhandel@chem.vu.nl>
+To:      Alliance Cache Kernel List <alliance-ck@egroups.com>
+Subject: CK reflections
+
+Hi guys,
+
+Now that we are in a stage that we have some code and some experience with
+the practical side of the CK, I have started reflecting on our design
+again.  I highly believe in the design->code->design cycle.  Obviously, I
+started by rereading the original Stanford CK specs, and comparing.  In
+this email I have put the results of this.
+
+Note that this has little implications to our design on the short term:
+it is mainly a reflection;  ie where did we differ from the stanford
+specs, and did we have a good reason to do that ?  It should be used as a
+source of inspiration.  Anyway, I believe it makes a clarifying (if not
+interesting :)) read.  I have also added some issues about our current
+design here, so I urge everybody to read this through.
+
+To summarise, to my greay surprise, our design has stayed extremely close
+to the stanford design, though my intuition told me that we had moved far
+beyond that (and perhaps for the worse.)  I think this is good news:
+after all, the CK is a proven design, and when you start meddling with
+that you start taking risks.  Most differences can be ascribed to hardware
+differences.
+
+Below I quote the relevant parts of the CK specs, and my comments in
+between.  Have fun !!
+
+-------------------------------------------------------------------------
+
+> A Caching Model Of Operating System Functionality
+> David R. Cheriton and Kenneth J. Duda
+> Computer Science Department, Stanford University, Stanford, CA 94025
+> {cheriton,kjd}@cs.stanford.edu
+
+(1)  Our goal
+
+> 1.  Introduction
+>
+> Micro-kernels to dat have not provided compelling advantages over the
+> conventional monolithic operating system kernel for several reasons.
+[snip]
+> In this paper, we present an alternative approach to kernel design based
+> on a caching model, as realised in the V++ Cache Kernel.  The V++ Cache
+> Kernel caches the active objects associated with the basic operating
+> system facilities, namely address spaces and threads associated with
+> virtual memory, scheduling and IPC.  In contrast to conventional
+> micro-kernel design, it does not fully implement all the functionality
+> associated with address spaces and threads.  In stead, it relies on
+> higher-level application kernels to provide the management functions
+> required for a complete implementation, including the loading and
+> writeback of these objects to and from the Cache Kernel.  For example,
+> on a page fault, the application kernel associated with the faulting
+> thread loads a new page mapping descriptor into the Cache Kernel as part
+> of a cached address space object.  This new descriptor may cause another
+> page mapping descriptor to be written back to another application kernel
+> to make space for the new descriptor.  Because the application kernel
+> selects the physical page frame to use, it fully controls physical page
+> selection, the page replacement policy and paging I/O.
+> The following sections argue that this caching model reduces supervisor-
+> level complexity, provides application control of resource management
+> and provides application control over exception conditions and recovery,
+> addressing the problems with micro-kernel designs to date (including a
+> micro-kernel that we developed previously [4]).
+
+This basic overview of the CK is, as far as I can see, quite compatible
+with our model.  I think we can safely take the last paragraph as our
+goal:  the three points mentioned here lead up to our expectations.
+
+(1) Reducing supervisor-level complexity makes the system faster, or it is
+    to be hoped (example:  QNX)
+(2) Application control over resource management creates a suitable
+    environment for advanced applications, both in the scientific and in
+    other fields (I would really like to port the MIT Cheetah webserver
+    onto the CK when it's running, and blast everybody else with 7x apache
+    speed :))
+(3) Application control over exception conditions and error recovery
+    creates a reliable system, as well as providing a suitable environment
+    for emulation of other operating systems.
+
+Or, to summarise, our goal is a small, tight (fast) kernel with little
+functionality besides information passing between user-level (or
+semi-kernel level) objects, and basic scheduling.
+
+As a sidenote, I have been evaluating other operating systems as potential 
+systems we can learn from (and want to beat :)).  Perhaps surprisingly to
+some, it is not the Linux kernel that holds me in awe:  actually, the
+linux kernel has very little in common with the Alliance CK.  In stead,
+the QNX microkernel (http://www.qnx.com/literature/index.html) resembles
+our design a lot, and even has a primitive system for interrupt passing.
+I have been immersing myself in the QNX specifications, and perhaps I will
+post a similar mail to this one comparing us to QNX in the future
+sometime.  Unfortunaly, QNX is not open-source.
+
+Also of interest, though a bit less relevant, is EROS
+(http://www.cis.upenn.edu/~eros/). EROS is distributed under a
+mozilla-like license, so we have access to the code.  Of interest here,
+though, are less the basic system services, but more the object-oriented
+design and its implementation of orthogonal persistance.  Unfortuantely,
+the EROS kernel is written in C++, a language that is almost completely
+alien to me.  I was going to ask Chris to decipher their persistance code
+for me (Chris, I'll get back to you on this when I next see you on IRC
+:)).
+
+
+(2)  Implementation
+
+> 2.  The Cache Kernel Interface
+>
+> In a Cache-Kernel-based system, one or more application kernels execute
+> in user mode on top of the supervisor-mode Cache Kernel, as illustrated
+> in figure 1.
+
+The V++ operating system was developed for the ParaDiGM architecture,
+which a highly-scalable parallell computer architecture consisting of
+several multiprocessor modules (MPMs) connected by a high-speed network,
+each MPM containing four Motorola MC68040 processors.
+
+The Motorola CISC-line of processors have two priviledge levels: 
+user and supervisor-mode.  In a setup like this, the CK would run in
+supervisor-mode while everything else would run in user mode.  Some
+architectures, like the Intel CISC-line of processors, have a more
+fine-grained security system.  For instance, ix86 machines have four
+levels of priviledge.  This allows the application kernels to have more
+permissions than their child threads.  This is of course not strictly
+neccessary, but has some advantages (ie, the CK could grant certain
+permissions to a kernel but not to its threads.)
+
+> Applications execute on top of the application kernel, either in
+> separate address spaces or the same address space as the application
+> kernel.  For example, application 1 and 2 in the figure may be executing
+> on top of, but in separate address spaces from a UNIX kernel emulator.
+
+Here we get to an interesting and crucial point.  On Intel machines, the
+applications would always run in the same address space as the parent
+kernel (or to be more precise, the part of the address space that maps the
+kernel would be the same in all address spaces the kernel caches.)  After
+all, segments can be used to protect the different parts of the address
+space belonging respectively to the CK, kernel, and user-mode thread code.
+Each segment runs at a different security level, thus protecting the
+kernel code from access by the user thread code.
+
+The picture changes, though, when we have only two protection levels, as
+on the Motorola processors:  each segment is running either in user-mode
+or in supervisor-mode.  As the CK is the only component to run in
+supervisor-mode, this would mean that in the segmented model the user
+thread code has direct access to the kernel's data structures.  Such
+access is only proper for kernel threads, so the kernel would have to be
+moved into a separate address space from the thread.  The main implication
+of this is that local interrupt response times drastically go up (local
+interrupts are software interrupts, which are forwarded to whatever parent
+kernel the current thread happens to have) because interrupt handling
+requires a context switch (which in itself isn't so bad, were it not that
+the address space needs to be switched as well, which is a costly
+operation as it requires to the TLB to be flushed and refilled.)
+
+There is probably no way around this except to do it 'the Stanford way',
+but as they got good response times why shouldn't we ?  The main point is
+that is doesn't affect our design -- interrupt forwarding is handled in
+the platform-dependant section of the code anyway (for instance
+CK/architecture/I80X86/jump.S an CK/architecture/I80X86/kernel.c).  But
+it's a good thing to remember.
+
+> The Cache Kernel acts as a cache for three types of operating system
+> objects:  address spaces, threads and kernels.  It holds the descriptors
+> for the active subset of these objects, executing the performance-
+> critical actions on these objects.  The rest of the service
+> functionality typical in a moder operating system (e.g., virtual memory
+> and scheduling) is implemented in application kernels.  The application
+> kernel also provides backing store for the object state when it is
+> unloaded from the Cache Kernel, just as data in a conventional cache has
+> a backing memory area.  For example, each application kernel maintains a
+> descriptor for each of its threads, loads a thread descriptor into the
+> Cache Kernel to make the thread a candidate for execution, and saves the
+> updated state of that thread when the thread is written back to it.
+
+Okay, this is the main point in which we bypass the Stanford model.
+
+In the Stanford model, objects are copied to CK space every time they're
+loaded, and are written back to the loader space every time they're
+unloaded.  A parallell is drawn with hardware caching:  Objects to be used
+are written to the cache, and if the cache is full loading a new object
+will automatically trigger unloading a different object from the cache.
+But as we will see, the parallell is rather badly drawn:  writing back
+objects because the CK is 'full' is not the main cause of writeback, and
+indeed is not supposed to happen often.
+
+And also the parallell falls down in other ways:  after all, what is the
+use for a hardware cache ?  Cache memory is extremely fast, but expensive.
+A computer will have a large amount of slow memory, and a small amount of
+fast cache memory.  A small amount of the slow memory can be cached into
+the cache memory, thus the processor has fast access to the memory that it
+is directly using.  Obviously, the more cache memory the faster (and more
+expensive) the system.
+
+But the parallell doesn't hold:  CK memory is no more expensive, nor
+better in any way, than kernel memory.  In our model, we have chosen to
+treat the architecture as a processor executing directly from a giant
+cache, with no slow memory at all.  This has several advantages:  caching
+an object involves little data copying, and uncaching none.  Furthermore,
+it means that both the CK and the kernel have access to the object while
+it is cached, which has advantages as well as disatvantages.  The main
+disatvantage is that we need to be careful with security (ie, do not keep
+sensitive information in kernel space.)  The main advantage is that
+adapting an object does not neccessarily involve uncaching it (which is a
+blessing while scheduling RT threads.)
+
+In order that the CK is able to access any object structure, anytime, even
+when the object's loader kernel is not the current address space, the CK
+copies (in stead of the object itself) the object's page mapping into the
+CK part of the address space (two- or higher-level pagetables allow this
+to be done efficiently and automatically for all address spaces at once.)
+It is to this CK-mapped address that the object's object header, which
+represents the object's descriptor points to.  Assuming that an object
+doesn't cross page boundary and is always smaller than one page allows for
+further optimisations in this area.
+
+All in all, I really do believe we have a model more efficient than the
+original, though it cannot quite be called 'caching' as such (who
+cares :)).  In case this model gives low performance, though, we can
+always try out the original model.
+
+On a sidenote, I do not completely wish to eliminate the concept of
+'writeback'.  It is always useful for the CK to be able to force the
+unloading of a certain object, by sending a writeback signal to the
+kernel's signal handler.  This might come in handy, for instance, while
+implementing orthogonal persistance.
+
+> The primary interface to the Cache Kernel consists of operations to load
+> and unload these objects, signals from the Cache Kernel to application
+> kernels that a particular object is missing,
+
+Missing ?  I haven't come across this one in the rest of the paper... I
+guess they mean something like a page fault (mapping is missing.)
+
+> and writeback communication to the application kernel when an object is
+> displaced from the Cache Kernel by the loading of another object.
+>
+[snip description of object identifiers]
+> Application kernels do not use the Cache Kernel object identifiers
+> except across this interface because a new identifier is assigned each
+> time an object is loaded.  For example, the UNIX emulator provides a
+> "stable" UNIX-like process identifier that is independant of the Cache
+> Kernel address space and thread identifiers  which may change several
+> times over the lifetime of the UNIX process.
+
+An important question is, how stable are object descriptors (or
+identifiers) in our model ?  Can we assume they stay the same over the
+lifetime of an object ?  This question is most important in order to make
+good decisions about IOC (see below.)
+
+> A small number objects can be locked into the Cache Kernel, protected
+> from writeback.  Locked objects are used to ensure that the application
+> page fault handlers, schedulers and trap handlers execute and do not
+> themselves incur page faults.
+
+Though its meaning is diminished in our model, still the lock flag is
+available for minor security checking.  It is mostly used to make sure
+that basic hardware services do not get unloaded (like the GrSK, or the
+IOSK.)  The lock bit is set by the ABL (caching locked objects is
+impossible.)  If your page fault handler incurs a page fault, well, that's
+your own stupid fault, and not our problem.  The CK won't force you to
+unload it :)
+
+> 2.1  Address Space Objects
+>
+> The Cache Kernel caches an address space object for each active address
+> space.  The address space state is stored as a root object and a
+> collection of per-page virtual-to-physical memory mappings.  The page
+> mappings, one per mapped page, specify some access flags, a virtual
+> address and the corresponding physical address.
+
+Stanford has chosen an approach in which they store only present page
+mappings, in their own format.  Apparently, the CK creates from these page
+mappings the address space structure as defined by the hardware.  As
+currently specified, our CK works using a system in which a temporary copy
+of the page tables is made when the kernel wants to change something, but
+this system was rejected by Jens and myself after considering the overhead
+of such a system (allocate a free page, copy 4k of data, change page
+mapping security, flush TLB, have kernel modify, security check 4k of
+data, change page mapping security, flush TLB, free allocate page.  Or
+worse even, on security breach 4k would have to be copied back !  Whew.)
+
+In stead, we go back to the Stanford method.  Just we don't store the
+mappings as loaded into the CK, but directly copy them into the pagetable
+in the right format (except of course on RISC machines, where we might as
+well take over the user pagemapping format, as loading the TLB is done by
+the software anyway.)  I left the exact implementation of this up to Jens
+(I don't think he got around to it yet..) but I expect the page mapping
+format as loaded into the CK will be pretty platform independant.  We just
+don't store it that way :)
+
+[snip]
+> The page mappings associated with an address space object are normally
+> loaded on demand in response to page faults.  When a thread accesses a
+> virtual address for which no mapping is cached, the Cache Kernel
+> delivers a mapping fault to the kernel that owns the address space (and
+> thread(s) contained therein), following the steps illustrated in
+> figure 2.  In step 1, the hardware traps to the Cache Kernel access
+> error handler.  The handler stores the state of the faulting thread in
+> its thread descriptor,
+
+Geez, ever heard of the kernel stack ?  Even on RISC this is conventional
+I think, though the nice processor doesn't do it for you then.  And on
+architectures with sliding register windows (SPARC) writing the thread
+state to main memory is the last thing I'd think of...
+
+> switches the thread's address space to the thread's application
+> kernel's address space, switches the thread's stack pointer to an
+> exception stack provided by the application kernel, and switches the
+> program counter to the address of the application kernel's page fault
+> handler, which is specified as an attribute of the kernel object
+> corresponding to the application kernel.
+
+There we go again.  It seems to me reloading the address space on *every*
+trap is very time-consuming, but then on Motorola you have no choice...
+
+> In step 2, the access error handler causes the thread to start executing
+> the application-kernel-level page fault handler.  The faulting address
+> and the form of access (read or write) are communicated as parameters to
+> the page fault handler.  In step 3, the application kernel page fault
+> handler navigates its virtual memory data structures, possibly locating
+> a free page frame and reading the page from the backing store.  It
+> constructs a page mapping descriptor and loads it into the Cache Kernel
+> in step 4.  (Alternatively, it may send a UNIX-style SEGV signal to the
+> process.  In this latter case, it resumes the thread at the address
+> corresponding to the user-specified UNIX signal handler.)  The loading
+> of a new page descriptor may cause another page descriptor to be written
+> back to the associated application kernel in order to make space for the
+> new descriptor, the same as previously described for address space
+> descriptors.
+
+This seems a bit incredible... how can you not have enough memory for a
+page mapping ?
+
+[snip]
+> 2.2  Interprocess Communication
+>
+> All interprocess and device communication is provided in the caching
+> model by implementing it as an extension of the virtual memory system
+> using memory-based messaging [7]. With memory-based messaging, threads
+> communicate through the memory system by mapping a shared region of
+> physical memory into the sender and receiver address spaces, as
+> illustrated in Figure 3. 
+>
+> The sending thread writes a message into this region and then delivers
+> the address of the new message to the receiving threads as an
+> address-valued signal. That is, the virtual address corresponding to the
+> location of the new message is passed to the receiving threads' signal
+> function, translated from the virtual address of the sending thread
+> (using the normal inverted page table support). On receiving the
+> address-valued signal, the receiving thread reads the message at the
+> designated location in the virtual memory region. While the thread is
+> running in its signal function, additional signals are queued within the
+> Cache Kernel. 
+>
+> To support memory-based messaging, the page mappings described in the
+> previous section are extended to optionally specify a signal thread and
+> also to specify that the page is in message mode. An application kernel
+> interested in receiving signals for a given page specifies a signal
+> thread in the mapping for the page. The signaling uses the same mapping
+> data structures as the rest of the virtual memory system. This extension
+> is simpler than the separate messaging mechanism for interprocess
+> communication that arises with other micro-kernels. Also, the Cache
+> Kernel is only involved in communication setup. The performance-critical
+> data transfer aspect of interprocess communication is performed directly
+> through the memory system. Moreover, with suitable hardware support,
+> there is no software intervention even for signal delivery. Thus,
+> communication performance is limited primarily by the raw performance of
+> the memory system, not the software overhead of copying, queuing and
+> delivering messages, as arises with other micro-kernels. 
+
+Well, we have chosen for a slightly different model which is based on
+message packets, in stead of direct sharing (we have the three
+communication systems of QNX:  synchronous messaging (messages),
+asynchronous messaging (proxies) and signals, though I do not know
+whether QNX uses page switching as its implementation.)  This has
+advantages as well as disadvantages.
+
+The disadvantage of shared memory is that the receiver is signalled by the
+sender when the sender wants to initiate a communication channel, whether
+or not the receiver wants to receive.  We don't have these problems with
+messages.  Also, messages are easier to use because they don't require
+an implementation of synchronisation on the user side.  On the other hand,
+once set up, a shared memory region costs no overhead while sending
+subsequent messages, while message passing would.
+
+I think we should start with page switching now, and later (when the CK is
+nearing completion :)) add support for shared memory for those
+applications that want that (it shouldn't be too hard, as Duda says, it
+fits nicely into the design.)
+
+> Memory-based messaging is used for accessing devices controlled by the
+> Cache Kernel. For example, the Ethernet device in our implementation is
+> provided as memory-mapped transmission and reception memory regions. The
+> client thread sends a signal to the Ethernet driver in the Cache Kernel
+> to transmit a packet with the signal address indicating the packet
+> buffer to transmit. On reception, a signal is generated to the receiving
+> thread with the signal address indicating the buffer holding the new
+> packet. This thread demultiplexes the data to the appropriate input
+> stream, similar to conventional network protocol implementations. 
+
+Well, this is possible in our model too.
+
+> Devices that fit into the memory-based messaging model directly require
+> minimal driver code complexity of the Cache Kernel. They also provide
+> the best performance. For example, our own network interface for a 266
+> Mb Fiber Channel interconnect is designed to fit into this memory-mapped
+> model, and so requires relatively few (276) lines of code for the Cache
+> Kernel driver. In particular, the driver only needs to support memory
+> mapping the special device address space corresponding to the network
+> interface. Data transfer and signaling is then handled using the
+> general Cache Kernel memory-based messaging mechanism. The clock is also
+> designed to fit this memory-based messaging model. In contrast, the
+> Ethernet device requires a non-trivial Cache Kernel driver to implement
+> the memory-based messaging interface because the Ethernet chip itself
+> provides a conventional DMA interface. 
+
+Well... we don't have the luxury of a specially tuned hardware design.
+Not until 'Made for Alliance' computers come... :)
+
+> An object-oriented RPC facility implemented on top of the memory-based
+> messaging as a user-space communication library allows applications and
+> services to use a conventional procedural communication interface to
+> services.
+
+... and I though we'd invented the SORB ?!?  I was quite surprised to find
+this here, though I could have guessed (it comes from the Stanford
+Distributed Systems group, after all...)
+
+> For instance, object writeback from the Cache Kernel to the
+> owning application kernel uses a writeback channel implemented using
+> this facility.
+
+Hey... I hadn't even thought about this.  Caching objects on remote
+nodes... nice experiment for later :)
+
+> This RPC facility is also used for high-performance
+> communication between distributed application kernels, as described in
+> Section 3. Memory-based messaging supports direct marshaling and
+> demarshaling to and from communication channels with minimal copying and
+> no protection boundary crossing in software.
+
+Will somebody please explain this to me ?  Daniel, Luc, Mentat, Edwin ?
+How does memory-based messaging directly support marshalling and
+demarshalling ?
+
+[snip]
+> 2.3  Thread Objects
+>
+> The Cache Kernel caches a collection of thread objects, one for each
+> application kernel thread that should be considered for execution. The
+> thread object is loaded with the values for all the registers and the
+> location of the kernel stack to be used by this thread if it takes an
+> exception (as described in Section 2.1). Other process state variables,
+> such as signal masks and an open file table, are not supported by the
+> Cache Kernel, and thus are stored only in the application kernel. As
+> with address space objects, the Cache Kernel returns an object
+> identifier when the thread is loaded which the application kernel can
+> use later to unload the thread, to change its execution priority, or to
+> force the thread to block. Each thread is associated with an address
+> space which is specified (and must be already loaded) when loading the
+> thread. 
+>
+> The Cache Kernel holds the set of active and response-sensitive threads
+> by mechanisms similar to that used for page mappings. A thread is
+> normally loaded when it is created, or unblocked and its priority makes
+> it eligible to run. It is unloaded when the thread blocks on a long-term
+> event, reducing the contention for thread descriptors in the Cache
+> Kernel. For example, in the UNIX emulation kernel, a thread is unloaded
+> when it begins to sleep with low priority waiting for user input. It is
+> then reloaded when a ``wakeup'' call is issued on this event. (Reloading
+> in response to user input does not introduce significant delay because
+> the thread reload time (about 230 s) is short compared to interactive
+> response times.) A thread whose application has been swapped out is also
+> unloaded until its application is reloaded into memory. In this
+> swapped state, it consumes no Cache Kernel descriptors, in contrast to
+> the memory-resident process descriptor records used by the conventional
+> UNIX kernel. A thread being debugged is also unloaded when it hits a
+> breakpoint. Its state can then be examined and reloaded on user request. 
+>
+> A thread that blocks waiting on a memory-based messaging signal can be
+> unloaded by its application kernel after it adds mappings that redirect
+> the signal to one of the application kernel's internal (real-time)
+> threads. The application-kernel thread then reloads the thread when it
+> receives a redirected signal for this unloaded thread. This technique
+> provides on-demand loading of threads similar to the on-demand loading
+> of page mappings that occurs with page faults. A thread can also remain
+> loaded in the Cache Kernel when it suspends itself by waiting on a
+> signal so it is resumed more quickly when the signal arrives. An
+> application kernel can handle threads waiting on short-term events in
+> this way. It can also lock a small number of real-time threads in the
+> Cache Kernel to ensure they are not written back. Retaining a "working
+> set" of loaded threads allows rapid context switching without
+> application kernel intervention. 
+
+Okay, our scheduling policy is different (see below.)  In our model, we do
+not have to worry about overloading the CK, so threads would stay loaded
+at all times and blocked using a CK system call.
+
+> Using this caching model for threads, an application kernel can
+> implement a wide range of scheduling algorithms, including traditional
+> UNIX-style scheduling. Basically, the application kernel loads a thread
+> to schedule it, unloads a thread to deschedule it, and relies on the
+> Cache Kernel's fixed priority scheduling to designate preference for
+> scheduling among the loaded threads. For example the UNIX emulator
+> per-processor scheduling thread wakes up on each rescheduling interval,
+> adjusts the priorities of other threads to enforce its policies, and
+> goes back to sleep. A special Cache Kernel call is provided as an
+> optimization, allowing the scheduling thread to modify the priority of a
+> loaded thread (rather than first unloading the thread, modifying its
+> priority and then reloading it.) The scheduling thread is assured of
+> running because it is loaded at high-priority and locked in the Cache
+> Kernel. Real-time scheduling is provided by running the processes at
+> high priority, possibly adjusting the priority over time to meet
+> deadlines. Co-scheduling of large parallel applications can be supported
+> by assigning a thread per processor and raising all the threads to the
+> appropriate priority at the same time, possibly across multiple Cache
+> Kernel instances, using inter-application-kernel communication. 
+
+We have not implemented a fixed priority scheduler in this way, but in
+stead we have a very flexible realtime scheduler.  If the application
+wants it, it can grab full control over its own scheduling by 'caching'
+time quanta, in stead of itself (though this caching does not require a
+control transfer to the CK.)  Otherwise, it can let the CK scheduler it
+based on parameters loaded by its kernel.
+
+The application can have full control over its scheduling, but it is also
+interesting to think how the application kernel could influence it.  The
+AK can adjust priorities over time just like is possible in the Stanford
+model.  Perhaps it would be interesting to make it possible for an AK to
+set up a thread in such a way, that every time before the CK scheduler
+runs the AK signal handler is invoked to reschedule the thread.  The
+question is, is it really worth it ?  It certainly isn't if it degrades
+general scheduler performance (the signal handler would run inside the
+thread's quantum, and should not make the actual schduler slower.)  Let's
+leave it for now, but it's another fun idea to try out for later on,
+perhaps.
+
+> A thread executing in a separate address space from its application
+> kernel makes "system calls" to its kernel using the standard processor
+> trap instruction. When a thread issues a trap instruction, the processor
+> traps to the Cache Kernel, which then forwards the thread to start
+> executing a trap handler in its application kernel using the same
+> approach as described for page fault handling. This trap forwarding uses
+> similar techniques to those described for UNIX binary emulation 
+> [1][19][8]. A trap executed by a thread executing in its application
+> kernel (address space) is handled as a Cache Kernel call. An application
+> that is linked directly in the same address space with its application
+> kernel calls its application kernel as a library using normal procedure
+> calls, and invokes the Cache Kernel directly using trap instructions. 
+
+Well, this is all highly implementation-dependant, as we saw before.
+
+> The trap, page-fault and exception forwarding mechanisms provide
+> "vertical" communication between the applications and their application
+> kernels, and between the application kernels and the Cache Kernel. That
+> is, "vertical" refers to communication between different levels of
+> protection in the same process or thread, namely supervisor mode, kernel
+> mode and conventional user mode. "Horizontal" communication refers to
+> communication between processes, such as between application kernels and
+> communication with other services and devices. It uses memory-based
+> messaging, as described in the previous subsection. 
+
+Indeed :).
+
+> 2.4  Kernel Objects
+>
+> The Cache Kernel caches a collection of kernel objects, one for each
+> active application kernel. A kernel object designates the application
+> kernel address space, the trap and exception handlers for the kernel and
+> the resources that the kernel has been allocated, including the physical
+> pages the kernel can map,
+
+Hey... resource management this way was specced all along, and I didn't
+know it !  :)  Then it must be good ;)
+
+> the percentage of each processor the kernel is
+> allowed to use, and the number of locked objects of each type the kernel
+> can load. The address spaces and threads loaded by an application kernel
+> are owned and managed by that application kernel. 
+>
+> For example, the UNIX emulator is represented by a kernel object in the
+> Cache Kernel. Each new address space and thread loaded into the Cache
+> Kernel by the UNIX emulator is designated as owned and managed by the
+> UNIX emulator.  Consequently, all traps and exceptions by threads
+> executing in address spaces created by the UNIX emulator are forwarded
+> to the UNIX emulator for handling, as described earlier. 
+>
+> A kernel object is loaded into the Cache Kernel when a new application
+> kernel is executed. Kernel objects are loaded by, and written back to,
+> the first application kernel, which is normally the system resource
+> manager described in Section 3. This first kernel is created, loaded and
+> locked on boot.
+
+This is interesting now.  We'll see more of this one later.  Does anyone
+have the faintest idea why this was originally scratched ?  It seems like
+a good idea to me -- the System SK, which owns the kernel objects (in
+stead of the CK,) which can clean up after it.  Probably can be
+implemented together with the Security SK in one big SK, loaded and locked
+at boot time.  Eliminates the need of complext physical page allocation
+separation when loading a new kernel.  Would also contain the init thread,
+that is run at boot time.  Hell, seems like we should do this !
+
+> As with all Cache Kernel objects, loading a new kernel
+> object can cause the writeback of another kernel object if there are no
+> free kernel object descriptors in the Cache Kernel. Unloading a kernel
+> object is an expensive operation because it requires unloading the
+> associated address spaces, threads, and memory mappings. The Cache
+> Kernel provides a special set of operations for modifying the resource
+> attributes of a kernel object, as an optimization over unloading a
+> kernel object, modifying the kernel object attributes and reloading it.
+> Currently, there are only three such specialized operations. The use of
+> these operations is discussed further in Section 3. 
+
+Okay, we don't need all of this.
+
+> Writeback of kernel objects is expected to be, and needs to be,
+> infrequent. It is provided because it is simple to do in the Cache
+> Kernel framework, ensures that the system resource manager need runs out
+> of kernel descriptors, such as for large swapped jobs with their own
+> kernels, and provides a uniform model for handling Cache Kernel objects. 
+>
+> This description covers the key aspects of the Cache Kernel interface.
+> Other conventional operating system services are provided at the
+> application kernel level, as illustrated by the UNIX emulator. 
+>
+> A key benefit of the Cache Kernel is that it allows execution of
+> multiple application kernels simultaneously, both operating system
+> emulators as well as application-specialized kernels, as described in
+> the next section. In this mode, it supports system-wide resource
+> management between these separate kernels, as covered in Section 3. 
+
+And here we have our coveted emulation feature :)
+
+> 3  Other Application Kernels
+[snip]
+> An application kernel is any program that is written to interface
+> directly to the Cache Kernel, handling its own memory management,
+> processing management and communication. That is, it must implement the
+> basic system object types and handle loading these objects into, and
+> processing writeback from, the Cache Kernel. Moreover, to be efficient,
+> it must be able to specialize the handling of these resources to the
+> application requirements and behavior. 
+
+Okay, clear enough :).
+
+Can we assume that ONLY kernel threads are allowed to interface with the
+CK ?  It might simplify some things, but as far as I'm concerned it's not
+strictly neccessary.
+
+> A C++ class library has been developed for each of the resources, namely
+> memory management, processing and communication. These libraries allow
+> applications to start with a common base of functionality and then
+> specialize, rather than provide all the required mechanism by itself.
+> Application kernels can override general-purpose resource management
+> routines in these libraries with more efficient application-specific
+> ones. They can also override exception handling routines to provide
+> application-specific recovery mechanisms. 
+
+Well, here are our EK libs :).
+
+[snip big piece about ParaDiGM]
+> A variety of applications, server kernels and operating system emulators
+> can be executing simultaneously on the same hardware as suggested in 
+> Figure 5. A special application kernel called the system resource
+> manager (SRM),  replicated one per Cache Kernel/MPM, manages the
+> resource sharing between other application kernels so that they can
+> share the same hardware simultaneously without unreasonable
+> interference. For example, it prevents a rogue application kernel
+> running a large simulation from disrupting the execution of a UNIX
+> emulator providing timesharing services running on the same ParaDiGM
+> configuration. 
+>
+> The SRM is instantiated when the Cache Kernel boots, with its kernel
+> descriptor specifying full permissions on all physical resources. It
+> acts as the owning kernel for the other application kernel address
+> spaces and threads as well as the application kernel objects themselves,
+> handling writeback for these objects. The SRM initiates the execution of
+> a new application kernel by creating a new kernel object, address space,
+> and thread, granting an initial resource allocation, bringing the
+> application's text and data into the address space, and loading these
+> objects into the Cache Kernel. Later, it may swap the application kernel
+> out, unloading its objects and saving its state on disk. 
+
+This sounds very good.  Let's stick with it.
+
+> The SRM allocates processing capacity, memory pages and network capacity
+> to application kernels. Resources are allocated in large units that the
+> application kernel can then suballocate internally. Memory allocations
+> are for periods of time from multiple seconds to minutes, chosen to
+> amortize the cost of loading and unloading the memory from disk.
+> Similarly, percentages of processors and percentages of network capacity
+> are allocated over these extended periods of time rather than for
+> individual time slices. 
+>
+> The SRM communicates with other instances of itself on other MPMs using
+> the RPC facility, coordinating to provide distributed scheduling using
+> techniques developed for distributed operating systems. In this sense,
+> the SRM corresponds to the "first team" in V [4]. The SRM is replicated
+> on each MPM for failure autonomy between MPMs, to simplify the SRM
+> management, and to limit the degree of parallelism, as was discussed
+> with other application kernels above. Our overall design calls for
+> protection maps in the memory modules, so an MPM failure cannot corrupt
+> memory beyond that managed by the SRM/Cache Kernel/MPM unit that failed.
+> Application kernels that run across several MPMs can be programmed to
+> recover from individual MPM failures, as mentioned earlier. 
+
+Okay, this goes a bit too far for now, it seems.  This can be used for
+systems like beowulf, etc.
+
+> In contrast to the general-purpose computing configurations supported by
+> the SRM, a single-application configuration, such as real-time embedded
+> control, can use a single application kernel executed as the first
+> kernel. This application kernel, with the authorization to control
+> resources of the first kernel, then has full control over system
+> resources. 
+
+Okay, this can be done by tweaking the ABL.  No problem :)
+
+> 4  Internal Design Issues
+[snip]
+> 4.1  Mapping Data Structures
+>
+> The Cache Kernel must efficiently support a large number of memory
+> mappings to allow application kernels to map large amounts of memory
+> with minimal overhead.  The mapping needs to be space-efficient because
+> they are stored in memory local to each instance of the Cache Kernel.
+> The mappings must also support specification of a signal process and
+> copy-on-write, although these occur with only a small percentage of the
+> mappings. To meet these requirements, the information from a page
+> mapping is stored across several data structures when it is loaded into
+> the Cache Kernel. 
+>
+> The virtual-to-physical mapping is stored in conventionally structured
+> page tables, one set per address space and logically part of the address
+> space object. The mapping's flags, such as the writable and cachable
+> bits, are also stored in the page table entry. The current 
+> implementation uses Motorola 68040 page tables as dictated by the
+> hardware. However, this data structure could be adapted for use
+> with a processor that requires software handling of virtual-to-physical
+> translation, such as the MIPS requires on a TLB miss. 
+
+Okay, so they decided to use the same optimisation as we did in the end.
+Apparenly, the earlier system took too much memory...
+
+> The physical-to-virtual mapping is stored in a physical memory map,
+> using 16-byte descriptors per page, specifying the physical address, the
+> virtual address, the address space and a hash link pointer. The physical
+> memory map is used to delete all mappings associated with a given
+> physical page as part of page reclamation as well as to determine all
+> the virtual addresses mapping to a given physical page as part of signal
+> delivery. The specifications of signal thread and source page for a
+> copy-on-write for a page, if present, are also stored as similar
+> descriptors in this data structure. This data structure is viewed as
+> recording dependencies between objects, the physical-to-virtual
+> dependency being a special but dominant case. That is, the descriptor is
+> viewed as specifying a key, the dependent object and the context,
+> corresponding to the physical address, virtual address and address space
+> in the case of the physical-to-virtual dependency. A signal thread is
+> recorded as a dependency record with the address of the
+> physical-to-virtual mapping as the key, a pointer to the signal thread
+> as the dependent, and a special signal context value as the context.
+> Locating the threads to which a signal on a given physical page should
+> be delivered requires looking up the physical-to-virtual dependency
+> records for the page, and then looking up the signal dependency records
+> for each of these records. A similar approach is used to record
+> copy-on-write mappings. 
+
+De we need something like this ?  I don't think so... opinions, anyone ?
+BTW, what is copy-on-write ?  Rik ?
+
+> This approach to storing page mapping information minimizes the space
+> overhead because the common case requires 16 bytes per page plus a small
+> overhead for the page tables. However, it does impose some performance
+> penalty on signal delivery, given the two lookups required in this
+> approach. 
+
+Why would we want to do a physical-to-virtual translation on delivering a
+signal, even if the signal handler is in a separate address space (unlike
+on x86 ?)  Perhaps this is a hardware thing... ideas ?
+
+> To provide efficient signal delivery in the common case, a per-processor
+> reverse-TLB is provided that maps physical addresses to the
+> corresponding virtual address and signal handler function pairs. When
+> the Cache Kernel receives a signal on a given physical address, each
+> processor that receives the signal checks whether the physical
+> address ``reverse translates'' according to this reverse TLB. If so, the
+> signal is delivered immediately to the active thread. Otherwise, it uses
+> the two-stage lookup described above. Thus, signal delivery to the
+> active thread is fast and the overhead of signal delivery to the
+> non-active thread is more, but is dominated by the rescheduling time to
+> activate the thread (if it is now the highest priority). The reverse-TLB
+> is currently implemented in software in the Cache Kernel but is feasible
+> to implement in hardware with a modest extension to the processor,
+> allowing dispatch of signal-handling to the active thread with no
+> software intervention. 
+
+Again, why would we signal on a physical address ?  I can't think why, but
+perhaps I'm being stupid :)
+
+[snip]
+> 4.3  Resource Allocation
+>
+> The Cache Kernel provides resource allocation enforcement mechanisms to
+> allow mutually distrustful application kernels to execute using shared
+> resources without undue interference. 
+
+Okay, same as we have.  Which resources ?  Let's see:
+
+> An application kernel's access to memory is recorded as read and write
+> permission on page groups of physical memory. A page group is a set of
+> contiguous physical pages starting on a boundary that is aligned modulo
+> the number of pages in the group (currently 128 4k pages). The page
+> group as a large unit of allocation minimizes the space required in the
+> Cache Kernel to record access rights to memory and minimizes overhead
+> allocating memory to application kernels. Using two bits per page group
+> to indicate access, a two-kilobyte memory access array in each kernel
+> object records access to the current four-gigabyte physical address
+> space. Each time a page mapping is loaded into the Cache Kernel, it
+> checks that the access for the specified physical page is consistent
+> with the memory access array associated with the loading kernel.
+> Typically, each kernel has read and write access on a page group
+> or else no access (meaning the memory is allocated to another
+> application kernel). However, we are exploring the use of page groups
+> that are shared between application kernels for communication and shared
+> data, where one or more of the application kernels may only have read
+> access to the memory. As described in Section 3, only the SRM can change
+> the memory access array for a kernel. 
+
+Well, this looks interesting.  But it seems that we're going to get
+problems with our page-switching IOC:  after all, after a page
+switching operation, we also need to switch the physical memory
+permissions on the two page frames.  This is irritating.  Jens was going
+to brainstorm how we can best represent per-kernel physical memory
+allocation.  If anybody else has ideas, let me know ! :)  Rik, perhaps you
+can come up with a few ideas, being the MM expert here :)
+
+> The kernel object also specifies the processor allocation that the
+> kernel's threads should receive in terms of a percentage for each
+> processor's time and the maximum priority it can specify for its
+> threads, i.e., its quota. The Cache Kernel monitors the consumption of
+> processor time by each thread and adds that to the total consumed by
+> its kernel for that processor, charging a premium for higher priority
+> execution and a discounted charge for lower priority execution. Over
+> time, it calculates the percentage of each processor that the kernel is
+> consuming. If a kernel exceeds its allocation for a given processor, the
+> threads on that processor are reduced to a low priority so that they
+> only run when the processor is otherwise idle. The graduated charging
+> rate provides an incentive to run threads at lower priority. For
+> example, the UNIX emulator degrades the priority of compute-bound
+> programs to low priority to reduce the effect on its quota when running
+> what are effectively batch, not interactive, programs. 
+
+Well, this is perhaps interesting for later.  I don't think it's very
+urgent, though.
+
+> The specification of a maximum priority for the kernel's threads allows
+> the SRM to prevent an application kernel from interfering with real-time
+> threads in another application kernel. For example, a compute-bound
+> application kernel that is executing well under its quota might
+> otherwise use the highest priorities to accelerate its completion time,
+> catastrophically delaying real-time threads.
+
+No problem here -- our scheduler is superior :), it doesn't have such
+problems.  RT threads always get priority, though they might compete with
+each other.
+
+[snip Stanfords QNX-like solution to the problem]
+> I/O capacity is another resource for which controlled sharing between
+> application kernels is required. To date, we have only considered this
+> issue for our high-speed network facility. These interfaces provide
+> packet transmission and reception counts which can be used to calculate
+> network transfer rates. The channel manager for this networking facility
+> in the SRM calculates these I/O rates, and temporarily disconnects
+> application kernels that exceed their quota, exploiting the 
+> connection-oriented nature of this networking facility. There is
+> currently no I/O usage control in the Cache Kernel itself. 
+
+Well, I realise they're talking about quota and stuff, but this is an
+interesring point to bring up the question about I/O.  The Motorola CISC
+processors don't have a separate I/O address space like x86, so the
+original designers didn't have to think about that.
+
+The problem is that the I/O address space is much harder to protect than
+with memory-mapped I/O.  I have thought long about this, but I have found
+no way to selectively allow access to some I/O ports to kernels (I/O maps
+don't work, because they at the same time grant the access to the user
+threads as well.)  I am currently inclined to throw IOPL on 1 and simply
+to have the kernels fight it our amongst themselves...  But I could also
+create a resource type for I/O region allocation, and hope that the
+kernels stick to it.  I'd like to hear opinions here what is to be done.
+
+[snip]
+
+Okay, we skip the evaluation :)
+
+One final remark:
+
+I am extremely surprised to find one thing missing from the Stanford
+specs:  how does Stanford handle hardware interrupts ?  It is for this
+purpose that originally SKs were created.  The hardware they were basing
+on has hardware interrupts as well (I know that the MC68000 gets hardware
+interrupts on its three IPLx pins, from the MC68901 or similar MFP.  I
+assume the 040 works in a similar way.)  We have our own way of dealing
+with them (interrupt hooking by system kernels) and it is a good way, but
+still I'm very curious how Stanford implemented it.  After all, when the
+serial port (for instance) generates a hardware interrupt, it won't do at
+all to forward it to the kernel that happens to be running.
+
+
+Well, I truely believe we got through this at last.  As you see, we
+haven't changed as much as you'd think.  This is probably very good :).
+One thing I'd like to readd to our design is the SRM, but I'm waiting for
+opinions.
+
+-- Ramon

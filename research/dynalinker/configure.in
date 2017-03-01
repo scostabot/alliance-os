@@ -1,0 +1,331 @@
+dnl Alliance dynalinker configure utility script source.
+dnl Process this file with autoconf to produce a configure script.
+dnl
+dnl HISTORY
+dnl Date     Author    Rev    Notes
+dnl 04/03/00 scosta    1.0    First draft
+
+dnl ***************** Initialization phase **********************
+dnl Check autoconf tool version:should be at least 2.9.
+
+AC_PREREQ(2.9)
+
+dnl Set revision of file configure.in.
+
+AC_REVISION($Revision: 1.00)dnl
+
+dnl We consider this file as the marker for a proper installation. 
+
+AC_INIT(elfloader/elfloader.c)
+
+echo "Alliance OS dynalinker source tree configure script"
+echo "----------------------------------------------------"
+
+dnl ************** Command line options support ******************
+dnl Setup configure command line options.
+
+dnl Should we use gmake, or not? Default: don't use gmake.
+
+AC_ARG_WITH(gmake,          
+	      [  --with-gmake            force use of gmake even if make is available],
+	      [with_gmake=$withval],
+	      [with_gmake='no'])
+
+dnl Should we use the standard probe to detect C compiler or force a user choice?
+dnl Default: use standard probing
+
+AC_ARG_WITH(cc,
+          [  --with-cc               force the usage of given C compiler],
+          [with_cc=$withval],
+          [with_cc='no'])
+
+dnl Should we generate anything with debugging info, or not? Default:with info
+
+AC_ARG_WITH(debuginfo,
+          [  --with-debuginfo        generate code with debugging info],
+          [with_debuginfo=$withval],
+          [with_debuginfo='yes'])
+
+dnl Checks for suitable shell commands environment.
+
+dnl When we want to delete something, we want to nuke it.
+
+RM="rm -f"
+AC_SUBST(RM)
+
+dnl We use internally awk, i.e. the Allos binary generation does not require
+dnl it, but the configure script is more manageable with it.
+
+AC_CHECK_PROGS(awkprg, awk, gawk, noawk)
+if test "$awkprg" = 'noawk'
+then
+  echo "*** No awk program is available."
+  echo "*** Please install a GNU awk utility version 3.0 or better."
+  echo "*** Be sure to set PATH variable accordingly before re-run configure."
+  exit
+fi
+
+dnl Checks for a suitable executable generation environment.
+
+if test "$with_cc" = 'no'
+  then
+  dnl We accept /only/ gcc or egcs as compilers. We expressevely forbid cc.
+
+  AC_CHECK_PROGS(CC, egcs, gcc, nocompiler)
+  if test "$CC" = 'nocompiler'
+  then
+    echo "*** No suitable compiler is configured in your PATH."
+    echo "*** Please install either egcs 1.1.1 or gcc 2.7.2.1 and up."
+    echo "*** Be sure to set PATH variable accordingly before re-run configure."
+    exit
+  else
+    dnl Let's check if the compiler version matches our tastes
+
+    AC_MSG_CHECKING(if build environemnt is sane)
+    cat > ./conftest.c <<EOF
+    main() {
+      if(__GNUC__>=2 && __GNUC_MINOR__>=7) {
+           exit(0);
+      } else {
+           exit(1);
+      }
+   }
+EOF
+
+    ac_link='$CC -o ./conftest ./conftest.c'
+    eval $ac_link
+    ./conftest
+
+    if test "$?" = 1
+    then
+      echo "*** Version of the compiler is not suitable."
+      echo "*** Please install either egcs 1.1.1 or gcc 2.7.2.1 and up."
+      echo "*** Please avoid gcc 2.8.0, because has several known bugs."
+      exit
+    else
+      AC_MSG_RESULT(ok)
+    fi
+
+    dnl Delete temporary files
+
+    $RM ./conftest.c ./conftest
+  fi
+else
+  echo $with_cc
+  ccompiler=`echo $with_cc | $awkprg -F/ '{ print $NF }'`
+  CC=$with_cc
+fi
+
+AC_SUBST(CC)
+
+dnl Probe target platform for this compiler and set the PLATFORM variable
+
+cmdline_target='$ccompiler -dumpmachine'
+target=`eval $cmdline_target`
+case $target in
+   	sparc-*-*)		PLATFORM="SPARC" ;;
+	i386-*)			PLATFORM="I80X86" ;;
+	i486-*)			PLATFORM="I80X86" ;;
+	i586-*)			PLATFORM="I80X86" ;;
+	i686-*)			PLATFORM="I80X86" ;;
+    *)				echo "*** The target platform" $target "is not supported.";echo "*** Please generate/configure gcc/egcs for correct platform.";exit ;;
+esac
+
+AC_SUBST(PLATFORM)
+
+dnl We use internally awk, i.e. the Allos binary generation does not require
+dnl it, but the configure script is more manageable with it.
+
+AC_CHECK_PROGS(awkprg, awk, gawk, noawk)
+if test "$awkprg" = 'noawk'
+then
+  echo "*** No awk program is available."
+  echo "*** Please install a GNU awk utility version 3.0 or better."
+  echo "*** Be sure to set PATH variable accordingly before re-run configure."
+  exit
+fi
+
+dnl Check which kind of make we are using. Check only gmake if user tell so.
+
+if test "$with_gmake" = 'yes'
+then
+  AC_CHECK_PROGS(makeprg, gmake, gmake, nomake)
+  if test "$makeprg" = 'nomake'
+  then
+    echo "*** No gmake program is available."
+    echo "*** Please install a GNU make utility version 3.74 or better."
+    echo "*** Be sure to set PATH variable accordingly before re-run configure."
+    exit
+  fi
+  makeprg='gmake'
+else
+  AC_CHECK_PROGS(makeprg, make, gmake, nomake)
+  if test "$makeprg" = 'nomake'
+  then
+    echo "*** No make program is available."
+    echo "*** Please install a GNU make utility version 3.74 or better."
+    echo "*** Be sure to set PATH variable accordingly before re-run configure."
+    exit
+  fi
+fi
+
+dnl Check make program version
+
+make_rel=`$makeprg -v | $awkprg '{ print $4 }'`
+major=`echo $make_rel | $awkprg -F. '{ print $1 }'`
+minor=`echo $make_rel | $awkprg -F. '{ print $2 }'`
+
+if test "$major" -lt 3
+then
+  echo "*** Please update version of" $makeprg "program to (at least) v3.7."
+  exit
+else
+  if test "$major" -eq 3 && test "$minor" -lt 7
+  then
+    echo "*** Please update version of" $makeprg "program to (at least) v3.7."
+    exit
+  fi
+fi
+
+MAKE=$makeprg
+AC_SUBST(MAKE)
+
+dnl Check the presence of archive program
+
+AC_CHECK_PROGS(archive, ar, ar, noarchive)
+if test "$archive" = 'noarchive'
+then
+  echo "*** No suitable archive utility is configured in your PATH."
+  echo "*** Please install GNU binutils with ar version 2.7 and up."
+  echo "*** Be sure to set PATH variable accordingly before re-run configure."
+  exit
+else
+  dnl Check if ar version is 2.7 or better
+
+  ar_rel=`ar -V | $awkprg '{ print $3 }'`
+  major=`echo $ar_rel | $awkprg -F. '{ print $1 }'`
+  minor=`echo $ar_rel | $awkprg -F. '{ print $2 }'`
+
+  if test "$major" -lt 2
+  then
+    echo "*** Please update version of ar program to (at least) v2.7."
+    echo "*** You can find it in binutils package rel 2.7 and up."
+    exit
+  elif test "$major" -eq 2 && test "$minor" -lt 7
+  then
+    echo "*** Please update version of ar program to (at least) v2.7."
+    echo "*** You can find it in binutils package rel 2.7 and up."
+    exit
+  fi
+fi
+  
+AR=$archive
+AC_SUBST(AR)
+ARFLAGS=cruv
+AC_SUBST(ARFLAGS)
+
+dnl The linker is also essential :)
+
+AC_MSG_CHECKING(linker)
+ldpath=`$ccompiler -print-prog-name=ld`
+
+if test -x $ldpath
+then
+  dnl Get the ld version string. Since ld output is version/platform 
+  dnl dependant, we parse it differently for architectures.The output
+  dnl will be that <rel> contains the release number (e.g. "2.7").
+
+  ldver=`$ldpath -V`
+  case $PLATFORM in
+    I80X86)		rel=`echo $ldver | $awkprg '{print $4}'` ;;
+  esac
+else
+  echo "*** There is no linker program in your system."
+  echo "*** Please install GNU binutils, with ld 2.7 and up."
+  echo "*** Be sure to set PATH variable accordingly before re-run configure."
+  exit
+fi
+
+dnl ld version check. Verify that <rel> is newer enough for our purposes.
+dnl Again, the criteria differs from platform, so we parse it differently.
+
+major=`echo $rel | $awkprg -F. '{print $1}'`
+minor=`echo $rel | $awkprg -F. '{print $2}'`
+
+if test "$major" -lt 2
+then
+  echo "*** Please update version of ld program to (at least) v2.7."
+  echo "*** You can find it in binutils package rel 2.7 and up."
+  exit
+else
+  if test "$major" -eq 2 && test "$minor" -lt 7
+  then
+    echo "*** Please update version of ld program to (at least) v2.7."
+    echo "*** You can find it in binutils package rel 2.7 and up."
+    exit
+  fi
+fi
+
+LD=$ldpath
+AC_SUBST(LD)
+AC_MSG_RESULT($ldpath)
+
+dnl Checks for libraries.
+
+dnl **************Compilation flags setting phase**********************
+dnl We force maximum warning check level
+
+if test "$with_debuginfo"='yes'
+then
+  CFLAGS="-Wall -g"
+else
+  CFLAGS="-Wall"
+fi
+
+AC_SUBST(CFLAGS)
+
+dnl We define here this macro, since is used in several places.
+dnl The REAL_ALLIANCE #define should be taken away sooner or later...
+
+CPPFLAGS="-D$PLATFORM "$FLAGS
+AC_SUBST(CPPFLAGS)
+
+dnl Checks for header files (in all reality these are only needed in
+
+AC_HEADER_DIRENT
+AC_HEADER_STDC
+AC_CHECK_HEADERS(fcntl.h sys/ioctl.h unistd.h)
+
+dnl Checks for typedefs, structures, and compiler characteristics.
+AC_C_CONST
+
+dnl Checks for library functions.
+AC_TYPE_SIGNAL
+AC_CHECK_FUNCS(getcwd strstr)
+
+echo "------Makefile generation---------------------------------"
+
+AC_OUTPUT(Makefile samplecode/MakeTest shell/Makefile elfloader/Makefile)
+
+dnl Output all digested information about source tree generation data
+
+pathld=$LD
+pathcc=`which $CC`
+pathar=`which $AR`
+pathmake=`which $MAKE`
+
+echo "------Environment definition---------------------------------"
+echo
+echo "Target CPU:    " $PLATFORM
+echo
+echo "C compiler:    " $CC "-->" $pathcc 
+echo "Librarian:     " $AR "-->" $pathar
+echo "Linker:        " ld "-->" $pathld
+echo "Make:          " $MAKE "-->" $pathmake
+echo
+echo "Final compilation flags and #defines:"
+echo "CFLAGS=" $CFLAGS
+echo "CPPFLAGS=" $CPPFLAGS
+echo "ARFLAGS=" $ARFLAGS
+echo
+

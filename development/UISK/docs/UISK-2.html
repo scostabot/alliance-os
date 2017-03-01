@@ -1,0 +1,166 @@
+<head>
+  <title>User Interface System Kernel Spec</title>
+</head>
+<body>
+  <center>
+    <h1>User Interface System Kernel</h1><br>
+  </center>
+
+  <h2>General</h2>
+  &nbsp&nbsp The UISK implements those parts of a user interface system that
+  are shared between all or most user interfaces, and it implements
+  functionality which allows a single user to use multiple user interfaces
+  simultaneously and seamlessly.<p>
+
+  &nbsp&nbsp The UISK has several distinct parts: Event queues, clipboards,
+  renting out screen space, global atoms. It does <strong>not</strong>
+  ever actually touch the screen, but it allows the various user interfaces
+  to decide when to do so. It does <strong>not</strong> act on  events in 
+  the qeues, but it makes those queues available to all of the user interfaces 
+  currently running. The UISK could also be extended to support such things 
+  as mail slots if there is need.<p>
+
+  Note: The GRSK should support drawing with alpha, 
+  e.g. putPixel(x, y, red, green, blue, alpha). This will make a lot of very
+  cool things available to Alliance programs. Native programs, or programs
+  running under an AK that makes use of the feature, could do things like
+  have semi-transparent window backgrounds.<p>
+
+  <h2>Specifics</h2><br>
+  <h3>Panes</h3><br>
+  &nbsp&nbsp Panes are a basic element of the UISK data structures. When
+  a section of screen is rented out, a pane is created that represents
+  that section of screen. Each pane includes a location, bounding box
+  size, a visible flag, and, optionally, a shape which allows
+  non-rectangle windows. Shapes are implemented by storing an alpha channel
+  for each pane. This alpha channel contains for each pixel of the pane a
+  value which indicates transparency, and a bit which flags transparency to
+  events. If the bit is set, events occuring at that point will be passed on
+  to the pane below. Panes can overlap on the screen, but at any given pixel 
+  value only one pane will indicate that it is 'on top'. All others will
+  be considered to be 'under' that pane. Each pane also has an associated event 
+  queue, which can be accessed via the same handle that allows access to the 
+  pane structure. Some events, such as mouse actions, propogate 'down' though
+  the panes which are under the point of the action. This propogation is
+  controlled by the 'tranparent to events' bit of the panes at that point.<p>
+
+  <h3>Event Queues</h3><br>
+  &nbsp&nbsp The event queues allow the exchange of user interface
+  information without forcing the source and destination to be within
+  the same user interface. Each pane has its own queue, and there is a
+  global event queue. Every event will be in at least the global queue,
+  and often more. A mouse click on a part of the screen covered by a
+  pane will be placed in both the global queue and in the queue for
+  that pane. Other events are placed into the appropriate queues in
+  a similar manner. It it up to the User Interface watching and managing
+  a particular pane to deal with these events, or pass them on to the
+  program which is running the window which the pane represents. If the
+  space allocated to an event queue(configurable) is used up, the oldest
+  events in the queue are removed to free up space for newer events. The
+  queues should be set large enough to avoid this occurence under normal
+  circumstances.<p>
+
+  <h3>Clipboards</h3>
+  &nbsp&nbsp Clipboards are an important part of user interaction with
+  a computer. They enable such actions as copy-and-paste, drag-and-drop,
+  even some kinds of IPC. Clipboards must be shared across all
+  applications, which is why they are part of the UISK.<p>
+
+  <h3>Global Atoms</h3>
+  &nbsp&nbsp An atom is like a clipboard, except that all atoms are set to
+  a fixed size when thay are created . This makes them faster for dealing with
+  simple data than clipboards are. They are not as generally useful as 
+  clipboards, but they can be useful for various things, especially IPC.<p>
+
+  <h2>Detailed</h2>
+  These are pseudocode definitions of the methods exported by the UISK. If 
+  Alliance uses a distributed method calling procedure such as CORBA IIOP, then
+  they will be callable across a network(vetoable by the Security SK), which 
+  in conjunction with remote callable methods in the Graphics SK will allow 
+  distributed display of a GUI, in the spirit of the X Window System.
+  A null PANEHANDLE refers to the root of the display. Special
+  characteristics of the root are that it is always 100% opaque on both the
+  visible and event channels, and that it is always 'below' all other panes.<p>
+
+  <pre>
+  PANEHANDLE createPane(Integer x, Integer y, Integer width, Integer height,
+  Boolean visible, Integer eventQueueLength);
+
+  PANEHANDLE createPane(Integer x, Integer y, Integer width, Integer height,
+    Boolean visible, Shape shape, Integer eventQueueLength);
+
+  void raisePane(PANEHANDLE pane);
+
+  void lowerPane(PANEHANDLE pane);
+
+  void setPanePos(PANEHANDLE pane, Integer x, Integer y);
+
+  Point getPanePos(PANEHANDLE pane); //There can be another set* which uses
+                                     //Points.
+
+  void setPaneSize(PANEHANDLE pane, Integer width, Integer height);
+
+  Point getPaneSize(PANEHANDLE pane);
+
+  void setPaneVisible(PANEHANDLE pane, Boolean visible);
+
+  Boolean getPaneVisible(PANEHANDLE pane);
+
+  void setPaneShape(PANEHANDLE pane, Shape shape);
+
+  Shape getPaneShape(PANEHANDLE pane);
+
+  void setTransThreshold(PANEHANDLE pane, Integer value); //Tells the UISK
+  //which alpha value to consider the lowest visible. Any alpha below that is
+  //considered totally transparent. This datum is used when triggering
+  //repaint to decide which panes need painted.
+
+  Integer getTransThreshold(PANEHANDLE pane);
+
+  void setPaneState(PANEHANDLE pane, Integer x, Integer y,
+    Integer width, Integer height, Boolean visible);
+
+  void setPaneState(PANEHANDLE pane, Integer x, Integer y,
+    Integer width, Integer height, Boolean visible, Shape shape);
+
+  void getPaneState(PANEHANDLE pane, IntegerPtr x, IntegerPtr y,
+    IntegerPtr width, IntegerPtr height, BooleanPtr visible, 
+    ShapePtr shape);
+
+  Event peekEvent(PANEHANDLE queue); //0 or NULL for global queue
+
+  Event popEvent(PANEHANDLE queue);
+
+  void pushEvent(PANEHANDLE queue, Event e);
+
+  CLIPHANDLE createClipboard(String name);
+
+  CLIPHANDLE getClipboardByName(String name);
+
+  void destroyClipboard(CLIPHANDLE clipboard);
+
+  void setClipboardData(CLIPHANDLE clipboard, VoidPtr data, Integer size);
+
+  VoidPtr getClipboardData(CLIPHANDLE clipboard, IntegerPtr size);
+    //The integer at size will be filled with the size of the data.
+
+  ATOMHANDLE createAtom(String name, Integer size);
+
+  ATOMHANDLE getAtomByName(String name);
+
+  void destroyAtom(ATOMHANDLE atom);
+
+  void setAtomData(ATOMHANDLE atom, VoidPtr data);
+
+  VoidPtr getAtomData(ATOMHANDLE atom);
+
+  Integer getAtomSize(ATOMHANDLE atom);
+  </pre>
+
+  <h2>History</h2>
+  Created 5-4-1998 by Daniel Arbuckle<br>
+  Editing 5-4-1998 to 5-16-1998 by Daniel Arbuckle<br>
+  Version 1 released 5-16-1998<br>
+  Added event transparency channel, root pane. Changed name. 5-17-1998, Daniel Arbuckle<br>
+  Version 2 released 5-17-1998<br>
+</body>

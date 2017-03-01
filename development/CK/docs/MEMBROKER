@@ -1,0 +1,184 @@
+Mailing-List: contact alliance-ck-owner@egroups.com
+Precedence: list
+X-URL: http://www.egroups.com/list/alliance-ck/
+X-Mailing-List: alliance-ck@egroups.com
+Reply-To: alliance-ck@egroups.com
+Delivered-To: listsaver-egroups-alliance-ck@egroups.com
+Date: Mon, 23 Nov 1998 09:31:12 -0500
+From: Chris Trawick <hazard@lords.com>
+MIME-Version: 1.0
+To: alliance-ck@egroups.com
+Subject: [alliance-ck] Re: Memory Broker Specs first release (MemSK revisited)
+
+
+Alliance Memory Broker Specification, Release 1.0 (11-22-1998)
+By Chris Trawick
+
+1. Introduction
+2. Definitions
+3. Memory Space Objects
+4. Memory Space Operations
+   4.1. Broker Functions
+        4.1.1. Allocate
+        4.1.2. Grow
+        4.1.3. Shrink
+        4.1.4. Deallocate
+   4.2. Client Callbacks
+        4.2.1. Yank
+        4.2.2. Sieze
+        4.2.3. Death
+5. Active Memory Management
+6. References
+7. Revisions
+
+1. Introduction
+
+This document details the Alliance Memory Broker to be implemented in the 
+Alliance Cache Kernel.  This specification is based on the original MemSK 
+proposal [1] as modified and reorganized in discussion on the Alliance 
+development lists [2].
+
+The Memory Broker handles all physical memory page allocation and
+management. It provides absolutely no virtual memory services, which are
+supported by the memory handler implementation chosen by the object using
+memory or by the default memory handler described in the Virtual Memory
+System Specification [3].
+
+
+2. Definitions
+
+Address Space -             A memory space operated by a memory handler.
+Memory Space -              A list of physical memory pages allocated to
+                            an MSO.
+Memory Handler (MH) -       An entity that satisfies the CK's yank and
+                            sieze requirements for the MSO, and usually
+                            handles the MSO's memory.
+Memory Space Object (MSO) - An object containing all information about a 
+                            memory space.
+
+
+3. Memory Space Objects
+
+The basic information about a memory space is stored in a memory space
+object controlled by the CK's system object manager.  This object has a
+signature of "AlOA", and the object's data has the following structure:
+
+#define PAGECOUNT INT32
+
+struct PageBlock {
+	void *startingWhere; /* A pointer to the beginning of this page block */
+	PAGECOUNT howMany;   /* How many pages are in this block */
+};
+
+struct MemorySpaceObject {
+
+	/* CK's pointer to this *MSO's yank callback */
+	PageBlock *(MemorySpaceObject memSpace, PAGECOUNT howMany) MSOyankPages;
+
+	/* CK's pointer to this MSO's sieze callback */
+	void (MemorySpaceObject *memSpace, PageBlock *whichPages) MSOsiezePages;
+
+	/* CK's pointer to this MSO's fault callback */
+	void (MemorySpaceObject *memSpace) MSOdeath;
+
+	/* Pointer to a null-terminated array of page blocks assigned to this
+	 * MSO.
+	 */
+	struct PageBlock *pages;
+};
+
+
+4. Memory Space Operations
+
+
+
+4.1. Broker Functions
+
+These functions are called by the MSO's MH to interface with the CK's
+memory broker functions to manage the MSO's size and existance.
+
+
+4.1.1. Allocate
+
+PAGECOUNT CKallocateMSO(MemorySpaceObject callbacks, PAGECOUNT howManyPages);
+
+This functions allocates a new MSO using the specified MH callbacks and
+initial size.  It returns the actual number of pages allocated.
+
+
+4.1.2. Grow
+
+PageBlock *CKgrowMSO(MemorySpaceObject *memSpace, PAGECOUNT howMany);
+
+This function requests that the addidional number of pages be allocated to
+this MSO.  It returns a null-terminated array of the newly allocated page
+block(s).
+
+
+4.1.3. Shrink
+
+void CKshrinkMSO(MemorySpaceObject *memSpace, PageBlock *whichPages);
+
+This function releases control of certain page blocks back to the CK
+Memory Broker.  pageBlocks is a null-terminated list of page blocks to be
+released.
+
+
+4.1.4. Deallocate
+
+void CKdeallocateMSO(MemorySpaceObject *memSpace);
+
+Destroys this MSO and releases all resources.
+
+
+4.2. Client Callbacks
+
+These functions are used by the CK's Memory Broker for active memory
+management.  Their pointers exist in the MSO object and are assigned by
+the MSO's MH when the MSO is first allocated.
+
+
+4.2.1. Yank
+
+PageBlock *MSOyankPages(MemorySpaceObject *memSpace, PAGECOUNT howMany);
+
+This function invites this MSO's MH to shrink the specified number of
+pages back to the control of the CK's Memory Broker.  It returns which
+page blocks were actually returned.  Note that the MH doesn't HAVE to
+fully satisfy the number of pages requested in a yank request.  However,
+it might be a good idea to keep the CK Memory Broker happy to avoid a
+siezure.
+
+
+4.2.2. Sieze
+
+void MSOsiezePages(MemorySpaceObject *memSpace, PageBlock *whichPages);
+
+This function notifies the target MSO that the specified null-terminated
+array of page blocks will be taken whether it likes it or not.  It is the
+job of the MSO's MH to prepare for the siezure by whatever means necessary
+with or without losing data as appropriate.
+
+
+4.2.3. Death
+
+void MSOdeath(MemorySpaceObject *memSpace);
+
+This function notifies the MSO's MH that the memory space has been labeled
+invalid and will be automatically deallocated after this call returns.  It
+is the responsibility of the MH to notify any services that this MSO
+depended on (including, but not necessarily limited to, the page swapping
+mechanism) to clean it out of the system completely.  
+
+
+5. Active Memory Management
+
+The CK's Memory Broker will 
+
+
+6. References
+
+[1] MemSK post
+[2] Development lists.
+[3] VMS
+

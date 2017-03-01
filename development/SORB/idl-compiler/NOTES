@@ -1,0 +1,16 @@
+1. #include "file.idl" directives in idl files.
+	Acording to the CORBA 2.2 specification, these directives are mapped
+in C to #include "file.h" in the generated header file, but as libIDL uses a
+prepocessor prior to parsing the idl file, we can't know when a #include was
+in the original idl file. This forces to protect every declaration in the
+generated file:
+#ifndef _scope_of_symbol_symbolname
+#define _scope_of_symbol_symbolname
+	/* Symbol definition goes here */
+#endif
+#ifndef _scope_of_other_symbol_anothername
+...
+
+2.- #pragmas are preprocessed.
+	As in the above case, we loose all the information on the #pragma
+directives becouse of libIDL preprocessing.

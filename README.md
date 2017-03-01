@@ -11,3 +11,5 @@ This archive contains the almost latest tree of Alliance OS, rescued from my per
 Remember: the future always depends from the past, in a way or another.
 Looking now "ancient" code tells us a lot of our current trends, for what they are in the positive and the negative way.
 Happy surfing.
+
+Note: differently from wine, software don't get better over time. You will have to make changes if you want compile it nowadays. Pedagogic contents are the same, though.
